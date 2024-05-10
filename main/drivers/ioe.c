@@ -21,7 +21,7 @@ esp_err_t ioe_write(uint8_t data) {
 	i2c_cmd_handle_t cmd = i2c_cmd_link_create();
 
 	ESP_ERROR_CHECK(i2c_master_start(cmd));
-	ESP_ERROR_CHECK(i2c_master_write_byte(cmd, ((IOE_I2C_ADDRESS) << 1)|I2C_MASTER_WRITE, 0x01)); // Write to I2C Address
+	ESP_ERROR_CHECK(i2c_master_write_byte(cmd, ((IOE_I2C_ADDRESS) << 1)|I2C_MASTER_WRITE, true)); // Write to I2C Address
 	ESP_ERROR_CHECK(i2c_master_write_byte(cmd, data, true)); // Write Register data
 	ESP_ERROR_CHECK(i2c_master_stop(cmd));
 	ret = i2c_master_cmd_begin(I2C_NUM_0, cmd, 0);

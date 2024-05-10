@@ -61,24 +61,6 @@ void app_main(void) {
         ESP_LOGI(TAG, "SD Unmount...");
         ESP_ERROR_CHECK(nuttyDriverSDCard.unmountSDCard());
     }
-    if(nuttyDriverSDCard.isSDCardMounted()) {
-        ESP_LOGI(TAG, "SD Unmount...");
-        ESP_ERROR_CHECK(nuttyDriverSDCard.unmountSDCard());
-    }
-    if(nuttyDriverSDCard.isSDCardMounted()) {
-        ESP_LOGI(TAG, "SD Unmount...");
-        ESP_ERROR_CHECK(nuttyDriverSDCard.unmountSDCard());
-    }
-    if(nuttyDriverSDCard.isSDCardMounted()) {
-        ESP_LOGI(TAG, "SD Unmount...");
-        ESP_ERROR_CHECK(nuttyDriverSDCard.unmountSDCard());
-    }
-    if(!nuttyDriverSDCard.isSDCardMounted()) {
-        ESP_LOGI(TAG, "SD Mount...");
-        ESP_ERROR_CHECK(nuttyDriverSDCard.mountSDCard());
-    }
-    //ESP_LOGI(TAG, "SD Unmount...");
-    //ESP_ERROR_CHECK(nuttyDriverSDCard.unmountSDCard());
     ESP_LOGI(TAG, "SD Info...");
     nuttyDriverSDCard.printSDCardInfo();
 
@@ -86,7 +68,7 @@ void app_main(void) {
     NuttyAudio_Init();
     NuttyAudio_SetVolume(16); // 16 = orig, > 16 = + x/16; < 16 = - x/16
     //NuttyAudio_PlayBuffer(ussr_start, 773508);
-    NuttyAudio_PlayBuffer(ussr_48k_start, 1160260);
+    //NuttyAudio_PlayBuffer(ussr_48k_start, 1160260);
     NuttyInput_Init();
     NuttySystemMonitor_Init();
     NuttyDisplay_Init();
@@ -110,7 +92,7 @@ void app_main(void) {
         }
 
         bool _played=false;
-        NuttyAudio_FinishedPlayed(&_played);
+        //NuttyAudio_FinishedPlayed(&_played);
         if(_played) { 
             if(x%2 == 0) {
                 ESP_LOGI(TAG, "BEEP");
@@ -151,6 +133,17 @@ void app_main(void) {
             vol -=1;
             ESP_LOGI(TAG, "Setting Volume = %d", vol);
             NuttyAudio_SetVolume(vol);
+        }
+
+
+        if(waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_START)) {
+            ESP_LOGI(TAG, "Listing files");
+            esp_err_t e = nuttyDriverSDCard.lsDir(SDCARD_MOUNT_POINT"/");
+            printf("err=%d\n", e);
+        }
+
+        if(waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_SELECT)) {
+            heap_caps_print_heap_info(MALLOC_CAP_DEFAULT);
         }
         
         

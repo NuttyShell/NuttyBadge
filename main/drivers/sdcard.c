@@ -115,10 +115,12 @@ static esp_err_t unmount_sd_card() {
     if(fs) {
         f_mount(NULL, drv, 0);
     }
+    fs=NULL;
     ESP_ERROR_CHECK(esp_vfs_fat_unregister_path(sd_path));
     if(pdrv != FF_DRV_NOT_USED) {
         ff_diskio_unregister(pdrv);
     }
+    pdrv = FF_DRV_NOT_USED;
     free(sd_path);
     //free(card); // unmount shouldn't remove the "card"
     sd_path = NULL;
@@ -202,11 +204,76 @@ static bool get_card_detect_inserted() {
     return (res == 0);
 }
 
+static esp_err_t writeFile(const char *absPath, char *data) {
+    ESP_LOGI(TAG, "Opening file %s", absPath);
+    FILE *f = fopen(absPath, "w");
+    if (f == NULL) {
+        ESP_LOGE(TAG, "Failed to open file for writing");
+        return ESP_FAIL;
+    }
+    fprintf(f, data);
+    fclose(f);
+    ESP_LOGI(TAG, "File written");
+
+    return ESP_OK;
+}
+
+static esp_err_t readFile(const char *absPath) {
+    ESP_LOGI(TAG, "Reading file %s", absPath);
+    FILE *f = fopen(absPath, "r");
+    if (f == NULL) {
+        ESP_LOGE(TAG, "Failed to open file for reading");
+        return ESP_FAIL;
+    }
+    char line[128];
+    fgets(line, sizeof(line), f);
+    fclose(f);
+
+    // strip newline
+    char *pos = strchr(line, '\n');
+    if (pos) {
+        *pos = '\0';
+    }
+    ESP_LOGI(TAG, "Read from file: '%s'", line);
+
+    return ESP_OK;
+}
+
+
+// 
+static esp_err_t ls_dir(const char *absPath) {
+    DIR *dir = opendir(absPath);
+    if(dir == NULL) return ESP_FAIL;
+
+    char entrypath[256];
+    const size_t absPath_len = strlen(absPath); 
+    strlcpy(entrypath, absPath, sizeof(entrypath));
+
+    struct dirent *entry;
+    struct stat entry_stat;
+    const char *entrytype;
+    char entrysize[16];
+    while ((entry = readdir(dir)) != NULL) {
+        entrytype = (entry->d_type == DT_DIR ? "directory" : "file");
+
+        strlcpy(entrypath + absPath_len, entry->d_name, sizeof(entrypath) - absPath_len);
+        if (stat(entrypath, &entry_stat) == -1) {
+            ESP_LOGE(TAG, "Failed to stat %s : %s", entrytype, entry->d_name);
+            continue;
+        }
+        sprintf(entrysize, "%ld", entry_stat.st_size);
+        ESP_LOGI(TAG, "Found %s : %s (%s bytes)", entrytype, entry->d_name, entrysize);
+    }
+    closedir(dir);
+    return ESP_OK;
+}
+
 NuttyDriverSDCard nuttyDriverSDCard = {
     .initSDCard = init_sd_card,
     .printSDCardInfo = print_sd_card_info,
     .mountSDCard = mount_sd_card,
     .unmountSDCard = unmount_sd_card,
     .isSDCardMounted = is_sd_card_mounted,
-    .getCardInserted = get_card_detect_inserted
+    .getCardInserted = get_card_detect_inserted,
+    .lsDir = ls_dir
 };

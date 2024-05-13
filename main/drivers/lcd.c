@@ -82,12 +82,12 @@ void lcd_full() {
 }
 
 
-static const uint8_t picture[]={
+//static const uint8_t picture[]={
 /*------------------------------------------------------------------------------
 ;  列行式，低位在前，阴码
 ;  宽×高（像素）: 128×64
 ------------------------------------------------------------------------------*/
-    0xFF,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,
+/*    0xFF,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,
 0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,
 0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,
 0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,
@@ -152,18 +152,43 @@ static const uint8_t picture[]={
 0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,
 0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0x80,0xFF
 
-};
+};*/
+
+static void lcd_update_page(uint8_t page, uint8_t *data, size_t datasz) {
+    lcd_set_page(page);
+    lcd_set_column(0);
+    lcd_data(data, datasz);
+}
+
+// LCD arranged (vertically): Page 4,5,6,7,0,1,2,3...
+static void lcd_update_page_seq_order(uint8_t page, uint8_t *data, size_t datasz) {
+    uint8_t reordered_page;
+    if(page >= 4) {
+        reordered_page = page-4;
+    }else{
+        reordered_page = page+4;
+    }
+    lcd_set_page(reordered_page);
+    lcd_set_column(0);
+    lcd_data(data, datasz);
+}
+
 void lcd_pic(uint8_t *pic, size_t sz) {
     uint8_t *p = pic;
     uint8_t page=0, column = 0;
     for(page = 0; page<8; page++) {
         lcd_set_page(page);
         lcd_set_column(0);
-        //for(column = 0; column<128; column ++) {
+        for(column = 0; column<128; column ++) {
             lcd_data(p, 128);
             p += 128;
-        //}
+        }
     }
+}
+
+void lcd_set_backlight_duty(uint32_t duty) {
+    ledc_set_duty(LEDC_LCD_BL_PWM_SPEED, LEDC_LCD_BL_PWM_CHANNEL, duty);
+    ledc_update_duty(LEDC_LCD_BL_PWM_SPEED, LEDC_LCD_BL_PWM_CHANNEL);
 }
 
  static uint8_t lcd_init_sequence [14] =
@@ -215,10 +240,21 @@ esp_err_t lcd_init(void) {
 	lcd_cmd(0xa4, false); // normal display
 
     lcd_clear();
-    lcd_pic(picture, 128*64);
+    //lcd_pic(picture, 128*64);
+
+    uint8_t *_tmp = malloc(128);
+    memset(_tmp, 0xff, 128);
+    //lcd_update_page(4, _tmp, 128);
+
+    //lcd_update_page_seq_order(7, _tmp, 20);
     return ESP_OK;
 }
 
+
+
 NuttyDriverLCD nuttyDriverLCD = {
     .initLCD = lcd_init,
+    .updatePage = lcd_update_page,
+    .updatePageSeqOrder = lcd_update_page_seq_order,
+    .setBacklightDutyCycle = lcd_set_backlight_duty,
 };

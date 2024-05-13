@@ -36,6 +36,9 @@ extern uint8_t ussr_96k_end[]   asm("_binary_ussr_96k_bin_end");
 
 
 void app_main(void) {
+    // Early init GPIO, LEDC,FSPI and LCD to display boot screen
+    
+
     // Peripherals (GPIO, LEDC, I2C, GPIOISR)
     ESP_ERROR_CHECK(nuttyPeripherals.initGPIO());
     ESP_ERROR_CHECK(nuttyPeripherals.initLEDC());
@@ -48,6 +51,21 @@ void app_main(void) {
     // Nutty Drivers (IOE, LCD)
     ESP_ERROR_CHECK(nuttyDriverIOE.initIOE());
     ESP_ERROR_CHECK(nuttyDriverLCD.initLCD());
+
+    // We should able to control the LCD now
+    NuttyDisplay_Init();
+    NuttyDisplay_setLCDBacklight(100);
+    lv_obj_t *parent = NuttyDisplay_getUserAppArea();
+    lv_obj_t *lbl;
+    NuttyDisplay_lockLVGL();
+    lbl = lv_label_create(parent);
+    lv_label_set_text(lbl, "NuttyOS");
+    lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, 0);
+    lbl = lv_label_create(parent);
+    lv_label_set_text(lbl, "Initializing...");
+    lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 0);
+    NuttyDisplay_unlockLVGL();
+
     ESP_ERROR_CHECK(nuttyDriverRGB.initRGB(3));
     ESP_ERROR_CHECK(nuttyDriverIR.initIRTx());
     ESP_ERROR_CHECK(nuttyDriverIR.initIRRx());
@@ -71,24 +89,40 @@ void app_main(void) {
     //NuttyAudio_PlayBuffer(ussr_48k_start, 1160260);
     NuttyInput_Init();
     NuttySystemMonitor_Init();
-    NuttyDisplay_Init();
     NuttyRGB_Init();
     NuttyIR_Init();
-    
     ESP_ERROR_CHECK(nuttyPeripherals.initGPIOISR(ioe_isr_handler, NULL)); // Must AFTER Nutty Services Start as task handle must available for ISR
 
+    vTaskDelay(pdMS_TO_TICKS(2000));
+    NuttyDisplay_clearUserAppArea();
     
     uint8_t duty=0;
     uint8_t x=0;
     int8_t vol=16;
     clearButtonHoldState(0x1ff);
+            char *text=(char *)malloc(22);
+            lv_obj_t *_lbl = NULL;
     while(true) {
         ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty);
         ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
         duty+=1;
+
+
+        
+        lv_obj_t *parent = NuttyDisplay_getUserAppArea();
+        snprintf(text, 20, "Duty=%d", duty);
+        NuttyDisplay_lockLVGL();
+        if(_lbl != NULL) lv_obj_del(_lbl);
+        _lbl = lv_label_create(parent);
+        lv_label_set_text(_lbl, text);
+        lv_obj_align(_lbl, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+        NuttyDisplay_unlockLVGL();
+
         if(duty == 255) { 
             duty=0; 
             ESP_LOGI(TAG, "LEDC Done Cycle.");
+            NuttyDisplay_clearUserAppArea();
+            _lbl=NULL;
         }
 
         bool _played=false;

@@ -11,8 +11,13 @@
 #include "freertos/queue.h"
 
 typedef esp_err_t (*NuttyDriverLCDInitFunc)(void);
+typedef void (*NuttyDriverLCDUpdatePageFunc)(uint8_t page, uint8_t *data, size_t datasz);
+typedef void (*NuttyDriverLCDSetBacklightDutyCycleFunc)(uint32_t duty);
 typedef struct _NuttyDriverLCD {
     NuttyDriverLCDInitFunc initLCD;
+    NuttyDriverLCDUpdatePageFunc updatePage;
+    NuttyDriverLCDUpdatePageFunc updatePageSeqOrder;
+    NuttyDriverLCDSetBacklightDutyCycleFunc setBacklightDutyCycle;
 } NuttyDriverLCD;
 extern NuttyDriverLCD nuttyDriverLCD;
 

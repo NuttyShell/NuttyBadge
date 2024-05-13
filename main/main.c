@@ -35,10 +35,10 @@ extern uint8_t ussr_96k_start[] asm("_binary_ussr_96k_bin_start");
 extern uint8_t ussr_96k_end[]   asm("_binary_ussr_96k_bin_end");
 
 
-void app_main(void) {
-    // Early init GPIO, LEDC,FSPI and LCD to display boot screen
-    
+extern const uint8_t boot_icon_start[] asm("_binary_boot_icon_png_start");
+extern const uint8_t boot_icon_end[]   asm("_binary_boot_icon_png_end");
 
+void app_main(void) {
     // Peripherals (GPIO, LEDC, I2C, GPIOISR)
     ESP_ERROR_CHECK(nuttyPeripherals.initGPIO());
     ESP_ERROR_CHECK(nuttyPeripherals.initLEDC());
@@ -55,6 +55,10 @@ void app_main(void) {
     // We should able to control the LCD now
     NuttyDisplay_Init();
     NuttyDisplay_setLCDBacklight(100);
+
+    NuttyDisplay_showPNG(boot_icon_start, boot_icon_end - boot_icon_start);
+    vTaskDelay(pdMS_TO_TICKS(5000));
+
     lv_obj_t *parent = NuttyDisplay_getUserAppArea();
     lv_obj_t *lbl;
     NuttyDisplay_lockLVGL();

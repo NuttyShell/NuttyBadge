@@ -17,5 +17,6 @@ void NuttyDisplay_unlockLVGL();
 lv_obj_t* NuttyDisplay_getUserAppArea();
 void NuttyDisplay_clearUserAppArea();
 void NuttyDisplay_setLCDBacklight(uint8_t percentage);
+void NuttyDisplay_showPNG(uint8_t *pngData, size_t pngSz);
 
 #endif /* _NUTTYDISPLAY_H */

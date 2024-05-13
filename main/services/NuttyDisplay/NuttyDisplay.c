@@ -96,6 +96,23 @@ void NuttyDisplay_unlockLVGL() {
     xSemaphoreGive(lvglLock);
 }
 
+static lv_img_dsc_t lvgl_png_img;
+void NuttyDisplay_showPNG(uint8_t *pngData, size_t pngSz) {
+    lvgl_png_img.header.always_zero = 0;
+    lvgl_png_img.header.w = 128;
+    lvgl_png_img.header.h = 64;
+    lvgl_png_img.data_size = pngSz;
+    lvgl_png_img.header.cf = LV_IMG_CF_RAW_ALPHA;
+    lvgl_png_img.data = pngData;
+    NuttyDisplay_lockLVGL();
+    lv_png_init();
+    lv_obj_t *img = lv_img_create(lv_scr_act());
+    lv_img_set_src(img, &lvgl_png_img);
+    lv_obj_align(img, LV_ALIGN_TOP_LEFT, 0, 0);
+    NuttyDisplay_unlockLVGL();
+}
+
+
 lv_obj_t* NuttyDisplay_getUserAppArea() {
     NuttyDisplay_lockLVGL();
     if(userAppArea == NULL) { 

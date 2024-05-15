@@ -112,6 +112,14 @@ void NuttyDisplay_showPNG(uint8_t *pngData, size_t pngSz) {
     NuttyDisplay_unlockLVGL();
 }
 
+// Please avoid using this in NuttyApp
+// This will wipe the whole screen, including the Task bar
+void NuttyDisplay_clearWholeScreen() {
+    NuttyDisplay_lockLVGL();
+    lv_obj_clean(lv_scr_act());
+    userAppArea=NULL; // Any pointer will be invalidated
+    NuttyDisplay_unlockLVGL();
+}
 
 lv_obj_t* NuttyDisplay_getUserAppArea() {
     NuttyDisplay_lockLVGL();

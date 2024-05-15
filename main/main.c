@@ -21,6 +21,16 @@
 #include "services/NuttyDisplay/NuttyDisplay.h"
 #include "services/NuttyRGB/NuttyRGB.h"
 #include "services/NuttyIR/NuttyIR.h"
+#include "services/NuttyApps/NuttyApps.h"
+
+#include "apps/NuttyMenu/NuttyMenu.h"
+#include "apps/NuttyTest/NuttyTest.h"
+#include "apps/NuttySnake/NuttySnake.h"
+#include "apps/NuttyAudioPlayer/NuttyAudioPlayer.h"
+#include "apps/NuttyRemote/NuttyRemote.h"
+#include "apps/NuttySettings/NuttySettings.h"
+#include "apps/NuttyRF/NuttyRF.h"
+#include "apps/NuttyAbout/NuttyAbout.h"
 
 static const char* TAG = "NuttyOS";
 
@@ -56,20 +66,21 @@ void app_main(void) {
     NuttyDisplay_Init();
     NuttyDisplay_setLCDBacklight(100);
 
+    // Show NuttyShell boot screen
     NuttyDisplay_showPNG(boot_icon_start, boot_icon_end - boot_icon_start);
-    vTaskDelay(pdMS_TO_TICKS(5000));
+    vTaskDelay(pdMS_TO_TICKS(2000));
+    NuttyDisplay_clearWholeScreen();
 
-    lv_obj_t *parent = NuttyDisplay_getUserAppArea();
+    // Show Initialization
+    lv_obj_t *parent = lv_scr_act();
     lv_obj_t *lbl;
     NuttyDisplay_lockLVGL();
     lbl = lv_label_create(parent);
-    lv_label_set_text(lbl, "NuttyOS");
-    lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, 0);
-    lbl = lv_label_create(parent);
-    lv_label_set_text(lbl, "Initializing...");
+    lv_label_set_text(lbl, "NuttyOS\nInitializing...");
     lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 0);
     NuttyDisplay_unlockLVGL();
 
+    // Doing the inits
     ESP_ERROR_CHECK(nuttyDriverRGB.initRGB(3));
     ESP_ERROR_CHECK(nuttyDriverIR.initIRTx());
     ESP_ERROR_CHECK(nuttyDriverIR.initIRRx());
@@ -79,12 +90,12 @@ void app_main(void) {
         ESP_LOGI(TAG, "SD Mount...");
         ESP_ERROR_CHECK(nuttyDriverSDCard.mountSDCard());
     }
-    if(nuttyDriverSDCard.isSDCardMounted()) {
-        ESP_LOGI(TAG, "SD Unmount...");
-        ESP_ERROR_CHECK(nuttyDriverSDCard.unmountSDCard());
-    }
-    ESP_LOGI(TAG, "SD Info...");
-    nuttyDriverSDCard.printSDCardInfo();
+    //if(nuttyDriverSDCard.isSDCardMounted()) {
+    //    ESP_LOGI(TAG, "SD Unmount...");
+    //    ESP_ERROR_CHECK(nuttyDriverSDCard.unmountSDCard());
+    //}
+    //ESP_LOGI(TAG, "SD Info...");
+    //nuttyDriverSDCard.printSDCardInfo();
 
     // Nutty Services
     NuttyAudio_Init();
@@ -95,26 +106,46 @@ void app_main(void) {
     NuttySystemMonitor_Init();
     NuttyRGB_Init();
     NuttyIR_Init();
+    NuttyApps_Init();
     ESP_ERROR_CHECK(nuttyPeripherals.initGPIOISR(ioe_isr_handler, NULL)); // Must AFTER Nutty Services Start as task handle must available for ISR
 
-    vTaskDelay(pdMS_TO_TICKS(2000));
-    NuttyDisplay_clearUserAppArea();
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    NuttyDisplay_clearWholeScreen();
     
     uint8_t duty=0;
     uint8_t x=0;
     int8_t vol=16;
     clearButtonHoldState(0x1ff);
-            char *text=(char *)malloc(22);
-            lv_obj_t *_lbl = NULL;
+    char *text=(char *)malloc(22);
+    lv_obj_t *_lbl = NULL;
+
+    // Register NuttyApps
+    NuttyApps_registerApp(NuttyMenu);
+    NuttyApps_registerApp(NuttyTest);
+    NuttyApps_registerApp(NuttySnake);
+    NuttyApps_registerApp(NuttyAudioPlayer);
+    NuttyApps_registerApp(NuttyRemote);
+    NuttyApps_registerApp(NuttySettings);
+    NuttyApps_registerApp(NuttyRF);
+    NuttyApps_registerApp(NuttyAbout);
+    NuttyApps_printApps();
+    NuttyApps_launchAppByIndex(0);
+
+    return;
     while(true) {
+
+       
+
+
         ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty);
         ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
         duty+=1;
 
 
         
-        lv_obj_t *parent = NuttyDisplay_getUserAppArea();
+        
         snprintf(text, 20, "Duty=%d", duty);
+        lv_obj_t *parent = NuttyDisplay_getUserAppArea();
         NuttyDisplay_lockLVGL();
         if(_lbl != NULL) lv_obj_del(_lbl);
         _lbl = lv_label_create(parent);

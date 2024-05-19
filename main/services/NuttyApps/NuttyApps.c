@@ -37,8 +37,31 @@ static void NuttyApps_AppRunner(void *entryPoint) {
 
 void NuttyApps_launchAppByIndex(uint8_t i) {
     TaskHandle_t taskHandle;
-    xTaskCreate(NuttyApps_AppRunner, nuttyApps[i].appName, 10240, (void *)nuttyApps[i].appMainEntry, 10, &taskHandle);
+    //xTaskCreate(NuttyApps_AppRunner, nuttyApps[i].appName, 10240, (void *)nuttyApps[i].appMainEntry, 10, &taskHandle);
+    xTaskCreatePinnedToCore(NuttyApps_AppRunner, nuttyApps[i].appName, 10240, (void *)nuttyApps[i].appMainEntry, 10, &taskHandle, 1);
 }
+
+void NuttyApps_launchAppByEntry(NuttyAppEntryPoint entryPoint) {
+    for(uint8_t i=0; i<totalApps; i++) {
+        if(nuttyApps[i].appMainEntry == entryPoint) {
+            return NuttyApps_launchAppByIndex(i);
+        }
+    }
+}
+
+uint8_t NuttyApps_getAppIndexByName(char *name) {
+    for(uint8_t i=0; i<totalApps; i++) {
+        if(strcmp(nuttyApps[i].appName, name) == 0) {
+            return i;
+        }
+    }
+    return 0;
+}
+
+void NuttyApps_launchAppByName(char *name) {
+    return NuttyApps_launchAppByIndex(NuttyApps_getAppIndexByName(name));
+}
+
 
 void NuttyApps_printApps() {
     uint8_t i;

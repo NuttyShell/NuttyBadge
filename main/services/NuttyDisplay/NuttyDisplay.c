@@ -24,6 +24,7 @@ static void NuttyDisplay_Worker(void* arg) {
     uint8_t lcdPage;
     while(true) {
         if(xEventGroupGetBits(lcdUpdateFlag) == BIT0) {
+            //ESP_LOGE(TAG, "LCD NEEDS REDRAW...");
             // LCD Update needed
             while(xSemaphoreTake(lcdLock, portMAX_DELAY) != pdTRUE);
             // Copy LCD FB (using DMA) to LCD
@@ -49,6 +50,17 @@ static void NuttyDisplay_Worker(void* arg) {
        }
        vTaskDelay(pdMS_TO_TICKS(5));
     }
+}
+
+void print_lcd_frame_buffer() {
+    ESP_LOGE(TAG, "###FRAMEBUFFER###");
+    while(xSemaphoreTake(lcdLock, portMAX_DELAY) != pdTRUE);
+    for(uint16_t i=0; i<sizeof(lvglFramebuffer); i++) {
+        printf("%d", lvglFramebuffer[i]);
+        if(i%128 == 0) printf("\n");
+    }
+     printf("\n");
+    xSemaphoreGive(lcdLock);
 }
 
 static void lvgl_flush_to_lcd_fb(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *px) {
@@ -121,11 +133,20 @@ void NuttyDisplay_clearWholeScreen() {
     NuttyDisplay_unlockLVGL();
 }
 
+uint16_t NuttyDisplay_getUserAppAreaWidth() {
+    return 128;
+}
+
+uint16_t NuttyDisplay_getUserAppAreaHeight() {
+    return 64-5;
+}
+
 lv_obj_t* NuttyDisplay_getUserAppArea() {
     NuttyDisplay_lockLVGL();
     if(userAppArea == NULL) { 
         userAppArea = lv_obj_create(lv_scr_act());
-        lv_obj_set_size(userAppArea, 128, 64);
+        lv_obj_set_size(userAppArea, NuttyDisplay_getUserAppAreaWidth(), NuttyDisplay_getUserAppAreaHeight());
+        lv_obj_set_pos(userAppArea, 0, 5);
     }
     NuttyDisplay_unlockLVGL();
     return userAppArea;

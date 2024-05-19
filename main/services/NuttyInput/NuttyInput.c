@@ -1,4 +1,5 @@
 #include "NuttyInput.h"
+#include "services/NuttyDisplay/NuttyDisplay.h"
 
 #define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c%c"
 #define BYTE_TO_BINARY(byte)  \
@@ -153,13 +154,131 @@ bool waitSingleButtonHoldAndReleasedNonBlock(uint16_t btn) {
     return false;
 }
 
-static void NuttyInput_Test(void *arg) {
+static lv_indev_drv_t lvgl_indev_drv;
+static lv_indev_t *lvgl_indev;
+static NuttyInputLVGLInputMapping lvgl_mapping;
+static SemaphoreHandle_t lvglInputSemaphore = NULL;
+
+static void lvgl_keypad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data) {
+    static uint32_t last_key = 0;
+
+    /*Get whether the a key is pressed and save the pressed key*/
+    uint16_t keyPress = 0x00;
+    for(uint8_t i=0; i<9; i++) {
+        if(waitSingleButtonHoldAndReleasedNonBlock((1 << i)) == true) keyPress |= (1<<i);
+    }
+
+
+    if(keyPress != 0) {
+        data->state = LV_INDEV_STATE_PRESSED;
+
+        /*Translate the keys to LVGL control characters according to your key definitions*/
+        while(xSemaphoreTake(lvglInputSemaphore, portMAX_DELAY) != pdTRUE);
+        switch(keyPress) {
+            case 1 << 0:
+                keyPress = lvgl_mapping.UP;
+                break;
+            case 1 << 1:
+                keyPress = lvgl_mapping.DOWN;
+                break;
+            case 1 << 2:
+                keyPress = lvgl_mapping.LEFT;
+                break;
+            case 1 << 3:
+                keyPress = lvgl_mapping.RIGHT;
+                break;
+            case 1 << 4:
+                keyPress = lvgl_mapping.A;
+                break;
+            case 1 << 5:
+                keyPress = lvgl_mapping.B;
+                break;
+            case 1 << 6:
+                keyPress = lvgl_mapping.SELECT;
+                break;
+            case 1 << 7:
+                keyPress = lvgl_mapping.START;
+                break;
+            case 1 << 8:
+                keyPress = lvgl_mapping.USRDEF;
+                break;
+        }
+        xSemaphoreGive(lvglInputSemaphore);
+        clearButtonHoldState(0x1ff);
+        last_key = keyPress;
+    }else{
+        data->state = LV_INDEV_STATE_RELEASED;
+    }
+    data->key = last_key;
+}
+
+lv_indev_t* NuttyInput_UpdateLVGLInDev(NuttyInputLVGLInputMapping mapping) {
+    while(xSemaphoreTake(lvglInputSemaphore, portMAX_DELAY) != pdTRUE);
+    lvgl_mapping = mapping;
+    xSemaphoreGive(lvglInputSemaphore);
+    return lvgl_indev;
+}
+
+    
+
+static void NuttyInput_UART(void *arg) {
+
+        uint8_t buf[2];
+        uint8_t i=0;
     while(1) {
         //printf("Waiting to hold A...\n");
         //waitSingleButtonHoldAndReleased(NUTTYINPUT_BTN_A);
         //waitOneOfTheButtonsPressed(0x01ff);
         //printf("%02x", btnPressedDebounced);
         //printf("OK!\n");
+
+        uint8_t ch = fgetc(stdin);
+        bool reset=true;
+        if(ch != 0xff) {
+            if(i==0 && ch == 'a') { 
+                btnHeldDebounced |= (1 << 4); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                vTaskDelay(pdMS_TO_TICKS(10));
+                btnHeldDebounced &= ~(1 << 4); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+            }else if(i==0 && ch == 'b') {
+                btnHeldDebounced |= (1 << 5); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                vTaskDelay(pdMS_TO_TICKS(10));
+                btnHeldDebounced &= ~(1 << 5); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+            }else if(i==0 && ch == 'x') {
+                btnHeldDebounced |= (1 << 8); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                vTaskDelay(pdMS_TO_TICKS(10));
+                btnHeldDebounced &= ~(1 << 8); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+            }else if(i==0 && ch == 'A') {
+                print_lcd_frame_buffer();
+            }else{
+                if(i==0 && ch == 0x1b) { buf[i]=ch; i++; reset=false; }
+                if(i==1 && ch == 0x5b) { buf[i]=ch; i++; reset=false; }
+                if(i==2) {
+                    if(ch == 0x41) { // Arrow key UP
+                        btnHeldDebounced |= (1 << 0); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                        vTaskDelay(pdMS_TO_TICKS(10));
+                        btnHeldDebounced &= ~(1 << 0); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                    }else if(ch == 0x42) {  // Arrow key DOWN
+                        btnHeldDebounced |= (1 << 1); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                        vTaskDelay(pdMS_TO_TICKS(10));
+                        btnHeldDebounced &= ~(1 << 1); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                    }else if(ch == 0x43) {  // Arrow key RIGHT
+                        btnHeldDebounced |= (1 << 3); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                        vTaskDelay(pdMS_TO_TICKS(10));
+                        btnHeldDebounced &= ~(1 << 3); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                    }else if(ch == 0x44) {  // Arrow key LEFT
+                        btnHeldDebounced |= (1 << 2); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                        vTaskDelay(pdMS_TO_TICKS(10));
+                        btnHeldDebounced &= ~(1 << 2); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                    }
+                }
+
+            }
+            if(reset) {
+                i=0;
+                memset(buf, 0x00, 2);
+            }
+        }
+
         vTaskDelay(10/portTICK_PERIOD_MS);
     }
 }
@@ -167,10 +286,22 @@ static void NuttyInput_Test(void *arg) {
 esp_err_t NuttyInput_Init() {
     ESP_LOGI(TAG, "Init");
     xTaskCreate(NuttyInput_Worker, "input_worker", 2560, NULL, 10, &WorkerHandle);
-    xTaskCreate(NuttyInput_Test, "input_tester", 2048, NULL, 10, NULL);
+    xTaskCreate(NuttyInput_UART, "input_uart", 4096, NULL, 10, NULL);
     assert(WorkerHandle != NULL);
     nuttyDriverIOE.lockIOE();
     ESP_ERROR_CHECK(nuttyDriverIOE.writeIOE(0b11111000));
     nuttyDriverIOE.releaseIOE();
+
+    // LVGL Input stuff
+    lvglInputSemaphore = xSemaphoreCreateMutex();
+    assert(lvglInputSemaphore != NULL);
+    while(xSemaphoreTake(lvglInputSemaphore, portMAX_DELAY) != pdTRUE);
+    lv_indev_drv_init(&lvgl_indev_drv);
+    lvgl_indev_drv.type = LV_INDEV_TYPE_KEYPAD;
+    lvgl_indev_drv.read_cb = lvgl_keypad_read;
+    lvgl_indev = lv_indev_drv_register(&lvgl_indev_drv);
+    assert(lvgl_indev != NULL);
+    xSemaphoreGive(lvglInputSemaphore);
+
     return ESP_OK;
 }

@@ -145,20 +145,20 @@ esp_err_t lcd_init(void) {
     lcd_cmd(0xe2, false); // system reset
 	lcd_cmd(0x40, false); // set LCD start line to 0
 	lcd_cmd(0xa0, false); // set SEG direction (A1 to flip horizontal)
-	lcd_cmd(0xc8, false); // set COM direction (C0 to flip vert)
-	lcd_cmd(0xa2, false); // set LCD bias mode 1/9
-	lcd_cmd(0x2c, false); // set boost on
-	lcd_cmd(0x2e, false); // set voltage regulator on
-	lcd_cmd(0x2f, false); // Voltage follower on
+	lcd_cmd(0xc8, false); // (Common Output Mode Select) Reverse (C0 to flip vert)
+	lcd_cmd(0xa2, false); // (LCD Bias Set) 1/9 bias (1/65 duty)
+	lcd_cmd(0x2c, false); // (Power Controller Set) Booster Circuit=ON; Voltage Reg=OFF; Voltage Follower=OFF
+	lcd_cmd(0x2e, false); // (Power Controller Set) Booster Circuit=ON; Voltage Reg=ON; Voltage Follower=OFF
+	lcd_cmd(0x2f, false); // (Power Controller Set) Booster Circuit=ON; Voltage Reg=ON; Voltage Follower=ON
 	lcd_cmd(0xf8, false); // set booster ratio to
 	lcd_cmd(0x00, false); // 4x
-	lcd_cmd(0x23, false); // set resistor ratio = 4
-	lcd_cmd(0x81, false);
-	lcd_cmd(0x28, false); // set contrast = 40
-	lcd_cmd(0xac, false); // set static indicator off
-	lcd_cmd(0x00, false);
+	lcd_cmd(0x23, false); // (V5 Voltage Regulator Internal Resistor Ratio Set) resistor ratio = 4
+	lcd_cmd(0x81, false); // (The Electronic Volume Mode Set)
+	lcd_cmd(0x28, false); // (Electronic Volume Register Set) Contrast = 40
+	lcd_cmd(0xac, false); // (Static Indicator OFF)
+	lcd_cmd(0x00, false); // (Static Indicator Register Set) OFF
 	lcd_cmd(0xa6, false); // disable inverse
-	lcd_cmd(0xaf, false); // enable display
+	lcd_cmd(0xaf, false); // Display ON
     
     uint8_t i=0;
     //for(i=0; i<14; i++) lcd_cmd(lcd_init_sequence[i], false);

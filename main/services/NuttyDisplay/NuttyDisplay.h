@@ -14,10 +14,14 @@
 esp_err_t NuttyDisplay_Init();
 void NuttyDisplay_lockLVGL();
 void NuttyDisplay_unlockLVGL();
+
+uint16_t NuttyDisplay_getUserAppAreaWidth();
+uint16_t NuttyDisplay_getUserAppAreaHeight();
 lv_obj_t* NuttyDisplay_getUserAppArea();
 void NuttyDisplay_clearUserAppArea();
 void NuttyDisplay_setLCDBacklight(uint8_t percentage);
 void NuttyDisplay_showPNG(uint8_t *pngData, size_t pngSz);
 void NuttyDisplay_clearWholeScreen();
+void print_lcd_frame_buffer();
 
 #endif /* _NUTTYDISPLAY_H */

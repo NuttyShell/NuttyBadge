@@ -37,6 +37,7 @@ static void NuttyApps_AppRunner(void *entryPoint) {
 
 void NuttyApps_launchAppByIndex(uint8_t i) {
     TaskHandle_t taskHandle;
+    ESP_LOGI(TAG, "Starting App Id=%d", i);
     //xTaskCreate(NuttyApps_AppRunner, nuttyApps[i].appName, 10240, (void *)nuttyApps[i].appMainEntry, 10, &taskHandle);
     xTaskCreatePinnedToCore(NuttyApps_AppRunner, nuttyApps[i].appName, 10240, (void *)nuttyApps[i].appMainEntry, 10, &taskHandle, 1);
 }

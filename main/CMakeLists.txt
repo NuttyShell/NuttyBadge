@@ -16,6 +16,8 @@ idf_component_register(
                     SRCS "services/NuttyIR/NuttyIR.c"
                     SRCS "services/NuttyApps/NuttyApps.c"
                     SRCS ""
+                    SRCS "lvgl_fonts/cg_pixel_4x5_mono.c"
+                    SRCS ""
                     SRCS "apps/NuttyMenu/NuttyMenu.c"
                     SRCS "apps/NuttyTest/NuttyTest.c"
                     SRCS "apps/NuttySnake/NuttySnake.c"

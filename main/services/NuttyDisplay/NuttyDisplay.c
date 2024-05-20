@@ -15,7 +15,9 @@ static EventGroupHandle_t lcdUpdateFlag;
 static SemaphoreHandle_t lcdLock;
 
 // User Application Area
-lv_obj_t *userAppArea = NULL;
+static lv_obj_t *userAppArea = NULL;
+// System Tray Area
+static lv_obj_t *sysTrayArea = NULL;
 
 #define LCD_UPDATED_BIT BIT0
 
@@ -125,20 +127,30 @@ void NuttyDisplay_showPNG(uint8_t *pngData, size_t pngSz) {
 }
 
 // Please avoid using this in NuttyApp
-// This will wipe the whole screen, including the Task bar
+// This will wipe the whole screen, including the System Tray
 void NuttyDisplay_clearWholeScreen() {
     NuttyDisplay_lockLVGL();
     lv_obj_clean(lv_scr_act());
     userAppArea=NULL; // Any pointer will be invalidated
+    sysTrayArea=NULL; // Any pointer will be invalidated
     NuttyDisplay_unlockLVGL();
 }
 
 uint16_t NuttyDisplay_getUserAppAreaWidth() {
-    return 128;
+    return NUTTYDISPLAY_USER_APP_AREA_WIDTH;
 }
 
 uint16_t NuttyDisplay_getUserAppAreaHeight() {
-    return 64-5;
+    return NUTTYDISPLAY_USER_APP_AREA_HEIGHT;
+}
+
+
+uint16_t NuttyDisplay_getSystemTrayAreaWidth() {
+    return NUTTYDISPLAY_SYSTEM_TRAY_AREA_WIDTH;
+}
+
+uint16_t NuttyDisplay_getSystemTrayAreaHeight() {
+    return NUTTYDISPLAY_SYSTEM_TRAY_AREA_HEIGHT;
 }
 
 lv_obj_t* NuttyDisplay_getUserAppArea() {
@@ -146,16 +158,36 @@ lv_obj_t* NuttyDisplay_getUserAppArea() {
     if(userAppArea == NULL) { 
         userAppArea = lv_obj_create(lv_scr_act());
         lv_obj_set_size(userAppArea, NuttyDisplay_getUserAppAreaWidth(), NuttyDisplay_getUserAppAreaHeight());
-        lv_obj_set_pos(userAppArea, 0, 5);
+        lv_obj_set_pos(userAppArea, 0, NuttyDisplay_getSystemTrayAreaHeight());
     }
     NuttyDisplay_unlockLVGL();
     return userAppArea;
+}
+
+lv_obj_t* NuttyDisplay_getSystemTrayArea() {
+    NuttyDisplay_lockLVGL();
+    if(sysTrayArea == NULL) { 
+        sysTrayArea = lv_obj_create(lv_scr_act());
+        lv_obj_set_size(sysTrayArea, NuttyDisplay_getSystemTrayAreaWidth(), NuttyDisplay_getSystemTrayAreaHeight());
+        //lv_obj_set_pos(sysTrayArea, 0, 0);
+    }
+    NuttyDisplay_unlockLVGL();
+    printf("SysTray:%p\n", sysTrayArea);
+    return sysTrayArea;
 }
 
 void NuttyDisplay_clearUserAppArea() {
     NuttyDisplay_lockLVGL();
     if(userAppArea != NULL) { 
         lv_obj_clean(userAppArea);
+    }
+    NuttyDisplay_unlockLVGL();
+}
+
+void NuttyDisplay_clearSystemTrayArea() {
+    NuttyDisplay_lockLVGL();
+    if(sysTrayArea != NULL) { 
+        lv_obj_clean(sysTrayArea);
     }
     NuttyDisplay_unlockLVGL();
 }

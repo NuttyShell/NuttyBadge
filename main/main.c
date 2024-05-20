@@ -64,11 +64,13 @@ void app_main(void) {
 
     // We should able to control the LCD now
     NuttyDisplay_Init();
-    NuttyDisplay_setLCDBacklight(100);
+    NuttyDisplay_setLCDBacklight(30);
+
+    vTaskDelay(pdMS_TO_TICKS(200));
 
     // Show NuttyShell boot screen
     NuttyDisplay_showPNG(boot_icon_start, boot_icon_end - boot_icon_start);
-    vTaskDelay(pdMS_TO_TICKS(2000));
+    vTaskDelay(pdMS_TO_TICKS(1500));
     NuttyDisplay_clearWholeScreen();
 
     // Show Initialization
@@ -81,15 +83,15 @@ void app_main(void) {
     NuttyDisplay_unlockLVGL();
 
     // Doing the inits
-    ESP_ERROR_CHECK(nuttyDriverRGB.initRGB(3));
+    //ESP_ERROR_CHECK(nuttyDriverRGB.initRGB(3));
     ESP_ERROR_CHECK(nuttyDriverIR.initIRTx());
-    ESP_ERROR_CHECK(nuttyDriverIR.initIRRx());
-    ESP_LOGI(TAG, "SD Init...");
-    ESP_ERROR_CHECK(nuttyDriverSDCard.initSDCard());
-    if(!nuttyDriverSDCard.isSDCardMounted()) {
-        ESP_LOGI(TAG, "SD Mount...");
-        ESP_ERROR_CHECK(nuttyDriverSDCard.mountSDCard());
-    }
+    //ESP_ERROR_CHECK(nuttyDriverIR.initIRRx());
+    //ESP_LOGI(TAG, "SD Init...");
+    //ESP_ERROR_CHECK(nuttyDriverSDCard.initSDCard());
+    //if(!nuttyDriverSDCard.isSDCardMounted()) {
+    //    ESP_LOGI(TAG, "SD Mount...");
+    //    ESP_ERROR_CHECK(nuttyDriverSDCard.mountSDCard());
+    //}
     //if(nuttyDriverSDCard.isSDCardMounted()) {
     //    ESP_LOGI(TAG, "SD Unmount...");
     //    ESP_ERROR_CHECK(nuttyDriverSDCard.unmountSDCard());
@@ -104,13 +106,15 @@ void app_main(void) {
     //NuttyAudio_PlayBuffer(ussr_48k_start, 1160260);
     NuttyInput_Init();
     NuttySystemMonitor_Init();
-    NuttyRGB_Init();
-    NuttyIR_Init();
+    NuttySystemMonitor_hideSystemTray();
+    //NuttyRGB_Init();
+    //NuttyIR_Init();
     NuttyApps_Init();
     ESP_ERROR_CHECK(nuttyPeripherals.initGPIOISR(ioe_isr_handler, NULL)); // Must AFTER Nutty Services Start as task handle must available for ISR
 
     vTaskDelay(pdMS_TO_TICKS(1000));
     NuttyDisplay_clearWholeScreen();
+    NuttySystemMonitor_showSystemTray();
     
     uint8_t duty=0;
     uint8_t x=0;

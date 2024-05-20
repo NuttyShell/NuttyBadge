@@ -7,6 +7,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "services/NuttyDisplay/NuttyDisplay.h"
 #include <esp_log.h>
 
 esp_err_t NuttySystemMonitor_Init();
@@ -15,5 +16,7 @@ bool NuttySystemMonitor_isLowBattery();
 bool NuttySystemMonitor_isVBUSConnected();
 bool NuttySystemMonitor_isSDCardInserted();
 bool NuttySystemMonitor_isSDCardMounted();
+void NuttySystemMonitor_hideSystemTray();
+void NuttySystemMonitor_showSystemTray();
 
 #endif /* _NUTTYSYSTEMMONITOR_H */

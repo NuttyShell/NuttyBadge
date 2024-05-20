@@ -13,8 +13,8 @@ extern EventGroupHandle_t ioe_int_evt_grp;
 typedef esp_err_t (*NuttyDriverIOEInitFunc)(void);
 typedef esp_err_t (*NuttyDriverIOEWriteFunc)(uint8_t);
 typedef esp_err_t (*NuttyDriverIOEReadFunc)(uint8_t *);
-typedef esp_err_t (*NuttyDriverIOEAccquireFunc)(void);
-typedef esp_err_t (*NuttyDriverIOEReleaseFunc)(void);
+typedef void (*NuttyDriverIOEAccquireFunc)(void);
+typedef void (*NuttyDriverIOEReleaseFunc)(void);
 typedef uint8_t (*NuttyDriverIOEGetOutputStateFunc)(void);
 typedef struct _NuttyDriverIOE {
     NuttyDriverIOEInitFunc initIOE;

@@ -119,24 +119,6 @@ void lcd_set_backlight_duty(uint32_t duty) {
     ledc_update_duty(LEDC_LCD_BL_PWM_SPEED, LEDC_LCD_BL_PWM_CHANNEL);
 }
 
- static uint8_t lcd_init_sequence [14] =
-{
-        0xa2,//bias set:1/9
-     0xa0,//ADC select:nomal,0->128
-     0xa6,//normal/reverse  display
-     0xc8,//commom output mode select: reverse
-     0xf8,//booster ratio set
-     0x00,//booster ratio:4x
-     0x2f,//power control set
-     0x26,//set (Rb/Ra)
-     0x81,//vo output voltage set
-     0x09,//voltage volume =9.0v
-    0xA0, //列扫描顺序：从左到右
-    0xc8, //行扫描顺序：反序
-     0x60,//set start line
-     0xaf,//display on  
-};
-
 esp_err_t lcd_init(void) {
     ESP_ERROR_CHECK(nuttyPeripherals.initFSPIDevice(&lcd_spi, LCD_SPEED_HZ, 0, 7, SPI_DEVICE_NO_DUMMY, GPIO_LCD_CS, lcd_spi_pre_transfer_cb));
     lcd_reset();
@@ -150,9 +132,9 @@ esp_err_t lcd_init(void) {
 	lcd_cmd(0x2c, false); // (Power Controller Set) Booster Circuit=ON; Voltage Reg=OFF; Voltage Follower=OFF
 	lcd_cmd(0x2e, false); // (Power Controller Set) Booster Circuit=ON; Voltage Reg=ON; Voltage Follower=OFF
 	lcd_cmd(0x2f, false); // (Power Controller Set) Booster Circuit=ON; Voltage Reg=ON; Voltage Follower=ON
-	lcd_cmd(0xf8, false); // set booster ratio to
+	lcd_cmd(0xf8, false); // (Test Mode?) set booster ratio to
 	lcd_cmd(0x00, false); // 4x
-	lcd_cmd(0x23, false); // (V5 Voltage Regulator Internal Resistor Ratio Set) resistor ratio = 4
+	lcd_cmd(0x23, false); // (V5 Voltage Regulator Internal Resistor Ratio Set) resistor ratio = 4 (< Official Use 0x26)
 	lcd_cmd(0x81, false); // (The Electronic Volume Mode Set)
 	lcd_cmd(0x28, false); // (Electronic Volume Register Set) Contrast = 40
 	lcd_cmd(0xac, false); // (Static Indicator OFF)

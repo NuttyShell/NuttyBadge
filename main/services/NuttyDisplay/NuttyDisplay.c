@@ -58,8 +58,10 @@ void print_lcd_frame_buffer() {
     ESP_LOGE(TAG, "###FRAMEBUFFER###");
     while(xSemaphoreTake(lcdLock, portMAX_DELAY) != pdTRUE);
     for(uint16_t i=0; i<sizeof(lvglFramebuffer); i++) {
-        printf("%d", lvglFramebuffer[i]);
         if(i%128 == 0) printf("\n");
+        if(lvglFramebuffer[i] == 1) printf("█");
+        if(lvglFramebuffer[i] == 0) printf(" ");
+        //printf("%d", lvglFramebuffer[i]);
     }
      printf("\n");
     xSemaphoreGive(lcdLock);
@@ -172,7 +174,6 @@ lv_obj_t* NuttyDisplay_getSystemTrayArea() {
         //lv_obj_set_pos(sysTrayArea, 0, 0);
     }
     NuttyDisplay_unlockLVGL();
-    printf("SysTray:%p\n", sysTrayArea);
     return sysTrayArea;
 }
 

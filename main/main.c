@@ -28,8 +28,14 @@
 #include "apps/NuttySnake/NuttySnake.h"
 #include "apps/NuttyAudioPlayer/NuttyAudioPlayer.h"
 #include "apps/NuttyRemote/NuttyRemote.h"
-#include "apps/NuttySettings/NuttySettings.h"
 #include "apps/NuttyRF/NuttyRF.h"
+#include "apps/NuttyRGBControl/NuttyRGBControl.h"
+#include "apps/NuttyWifiScanner/NuttyWifiScanner.h"
+#include "apps/NuttyBTRemote/NuttyBTRemote.h"
+#include "apps/NuttyCounter/NuttyCounter.h"
+#include "apps/NuttyBTScanner/NuttyBTScanner.h"
+#include "apps/NuttyStopwatch/NuttyStopwatch.h"
+#include "apps/NuttySettings/NuttySettings.h"
 #include "apps/NuttyAbout/NuttyAbout.h"
 
 static const char* TAG = "NuttyOS";
@@ -129,8 +135,14 @@ void app_main(void) {
     NuttyApps_registerApp(NuttySnake);
     NuttyApps_registerApp(NuttyAudioPlayer);
     NuttyApps_registerApp(NuttyRemote);
-    NuttyApps_registerApp(NuttySettings);
     NuttyApps_registerApp(NuttyRF);
+    NuttyApps_registerApp(NuttyRGBControl);
+    NuttyApps_registerApp(NuttyWifiScanner);
+    NuttyApps_registerApp(NuttyBTRemote);
+    NuttyApps_registerApp(NuttyCounter);
+    NuttyApps_registerApp(NuttyBTScanner);
+    NuttyApps_registerApp(NuttyStopwatch);
+    NuttyApps_registerApp(NuttySettings);
     NuttyApps_registerApp(NuttyAbout);
     NuttyApps_printApps();
     NuttyApps_launchAppByIndex(0);

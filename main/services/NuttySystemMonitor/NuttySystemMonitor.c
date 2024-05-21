@@ -79,6 +79,7 @@ static void NuttySystemMonitor_Worker(void* arg) {
 
     lv_style_t system_tray_style;
     lv_style_init(&system_tray_style);
+    lv_style_set_text_font(&system_tray_style, &cg_pixel_4x5_mono);
 
     while(true) {
         // Read IOE for VBUS Detect
@@ -126,7 +127,6 @@ static void NuttySystemMonitor_Worker(void* arg) {
             lv_obj_t *tray = NuttyDisplay_getSystemTrayArea();
             NuttyDisplay_lockLVGL();
             lv_obj_t *lbl = lv_label_create(tray);
-            lv_style_set_text_font(&system_tray_style, &cg_pixel_4x5_mono);
             lv_obj_add_style(lbl, &system_tray_style, LV_PART_MAIN);
             //lv_obj_set_size(lbl, lv_obj_get_width(tray), lv_obj_get_height(tray));
             lv_label_set_text_fmt(lbl, "SD=%s M=%s BAT=%04d[%s]", 
@@ -136,7 +136,6 @@ static void NuttySystemMonitor_Worker(void* arg) {
             boolToLoOK(NuttySystemMonitor_isLowBattery()));
             lv_obj_center(lbl);
             NuttyDisplay_unlockLVGL();
-            heap_caps_print_heap_info(MALLOC_CAP_DEFAULT);
         }
 
         vTaskDelay(pdMS_TO_TICKS(1000));

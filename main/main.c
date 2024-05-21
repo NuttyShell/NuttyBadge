@@ -125,7 +125,7 @@ void app_main(void) {
     uint8_t duty=0;
     uint8_t x=0;
     int8_t vol=16;
-    clearButtonHoldState(0x1ff);
+    NuttyInput_clearButtonHoldState(0x1ff);
     char *text=(char *)malloc(22);
     lv_obj_t *_lbl = NULL;
 
@@ -191,11 +191,11 @@ void app_main(void) {
 
         uint16_t addr, cmd;
         uint8_t status;
-        if(isOneOfTheButtonsPressed(NUTTYINPUT_BTN_A)) {
+        if(NuttyInput_isOneOfTheButtonsCurrentlyPressed(NUTTYINPUT_BTN_A)) {
             ESP_LOGI(TAG, "IRTx: %04X:%04X", addr, cmd);
             nuttyDriverIR.txIRNEC(addr, cmd);
         }
-        if(isOneOfTheButtonsPressed(NUTTYINPUT_BTN_B)) {
+        if(NuttyInput_isOneOfTheButtonsCurrentlyPressed(NUTTYINPUT_BTN_B)) {
             nuttyDriverIR.waitForIRNECRx(&addr, &cmd, &status, 1000);
             if(status == 2 || status == 4) {
                 ESP_LOGI(TAG, "[%d] IRRx: %04X:%04X", status, addr, cmd);
@@ -204,30 +204,30 @@ void app_main(void) {
                 cmd = 0;
             }
         }
-        if(isOneOfTheButtonsPressed(NUTTYINPUT_BTN_USRDEF)) {
+        if(NuttyInput_isOneOfTheButtonsCurrentlyPressed(NUTTYINPUT_BTN_USRDEF)) {
             int batt = NuttySystemMonitor_getBatteryVoltage();
             ESP_LOGI(TAG, "BATT=%d; LV_BAT=%d; VBUS=%d; SDM=%d, SDCD=%d;", batt, NuttySystemMonitor_isLowBattery(), NuttySystemMonitor_isVBUSConnected(), NuttySystemMonitor_isSDCardMounted(), NuttySystemMonitor_isSDCardInserted());
 
         }
-        if(waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_UP)) {
+        if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_UP)) {
             vol += 1;
             ESP_LOGI(TAG, "Setting Volume = %d", vol);
             NuttyAudio_SetVolume(vol);
         }
-        if(waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_DOWN)) {
+        if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_DOWN)) {
             vol -=1;
             ESP_LOGI(TAG, "Setting Volume = %d", vol);
             NuttyAudio_SetVolume(vol);
         }
 
 
-        if(waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_START)) {
+        if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_START)) {
             ESP_LOGI(TAG, "Listing files");
             esp_err_t e = nuttyDriverSDCard.lsDir(SDCARD_MOUNT_POINT"/");
             printf("err=%d\n", e);
         }
 
-        if(waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_SELECT)) {
+        if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_SELECT)) {
             heap_caps_print_heap_info(MALLOC_CAP_DEFAULT);
         }
         

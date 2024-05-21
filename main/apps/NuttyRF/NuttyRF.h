@@ -10,6 +10,8 @@
 #include <esp_timer.h>
 
 #include "services/NuttyApps/NuttyApps.h"
+#include "services/NuttyDisplay/NuttyDisplay.h"
+#include "services/NuttyInput/NuttyInput.h"
 
 
 extern NuttyAppDefinition NuttyRF;

@@ -101,33 +101,34 @@ static void NuttyInput_Worker(void* arg) {
     }
 }
 
-// Check if one of the given button(s) is/are pressed
-bool isOneOfTheButtonsPressed(uint16_t btns) {
+// Check if one of the given button(s) is/are pressed at this exact moment
+bool NuttyInput_isOneOfTheButtonsCurrentlyPressed(uint16_t btns) {
     return ((btnPressedDebounced & btns) != 0x00);
 }
 
-// Wait one of the given button(s) is/are pressed
-void waitOneOfTheButtonsPressed(uint16_t btns) {
+// Wait one of the given button(s) is/are pressed at this exact moment
+void NuttyInput_waitOneOfTheButtonsPressed(uint16_t btns) {
     while(!(btnPressedDebounced & btns)) {
         vTaskDelay(10/portTICK_PERIOD_MS);
     }
 }
 
-void waitAllOfTheButtonsNotPressed(uint16_t btns) {
+// Wait all the specified buttons are released
+void NuttyInput_waitAllOfTheButtonsNotPressed(uint16_t btns) {
     while((btnPressedDebounced & btns)) {
         vTaskDelay(10/portTICK_PERIOD_MS);
     }
 }
 
-// Wait the given button are being pressed and released
-void waitSingleButtonHoldAndReleased(uint16_t btn) {
+// Wait the given button are being pressed and released (blocking)
+void NuttyInput_waitSingleButtonHoldAndReleasedBlocking(uint16_t btn) {
     uint32_t holdCounter=0;
     while(1) {
-        waitOneOfTheButtonsPressed(btn);
-        if(isOneOfTheButtonsPressed(btn)) {
+        NuttyInput_waitOneOfTheButtonsPressed(btn);
+        if(NuttyInput_isOneOfTheButtonsCurrentlyPressed(btn)) {
             holdCounter++;
             if(holdCounter == BTN_HOLD_THRESHOLD) {
-                waitAllOfTheButtonsNotPressed(btn);
+                NuttyInput_waitAllOfTheButtonsNotPressed(btn);
                 return;
             }
         }else{
@@ -138,16 +139,16 @@ void waitSingleButtonHoldAndReleased(uint16_t btn) {
 
 }
 
-// Clear button held state
-void clearButtonHoldState(uint16_t btn) {
+// Clear button held state, used with `NuttyInput_waitSingleButtonHoldAndReleasedNonBlock`
+void NuttyInput_clearButtonHoldState(uint16_t btn) {
     btnHeldDebounced &= ~btn;
 }
 
 // Wait the given button is being pressed and released (non-blocking)
-bool waitSingleButtonHoldAndReleasedNonBlock(uint16_t btn) {
+bool NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(uint16_t btn) {
     if(btnHeldDebounced & btn) {
         if(!(btnPressedDebounced & btn)) {
-            clearButtonHoldState(btn);
+            NuttyInput_clearButtonHoldState(btn);
             return true;
         }
     }
@@ -165,7 +166,7 @@ static void lvgl_keypad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data)
     /*Get whether the a key is pressed and save the pressed key*/
     uint16_t keyPress = 0x00;
     for(uint8_t i=0; i<9; i++) {
-        if(waitSingleButtonHoldAndReleasedNonBlock((1 << i)) == true) keyPress |= (1<<i);
+        if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock((1 << i)) == true) keyPress |= (1<<i);
     }
 
 
@@ -204,7 +205,7 @@ static void lvgl_keypad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data)
                 break;
         }
         xSemaphoreGive(lvglInputSemaphore);
-        clearButtonHoldState(0x1ff);
+        NuttyInput_clearButtonHoldState(0x1ff);
         last_key = keyPress;
     }else{
         data->state = LV_INDEV_STATE_RELEASED;
@@ -236,15 +237,24 @@ static void NuttyInput_UART(void *arg) {
         bool reset=true;
         if(ch != 0xff) {
             if(i==0 && ch == 'a') { 
+                btnPressedDebounced |= (1 << 4); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                 btnHeldDebounced |= (1 << 4); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                vTaskDelay(pdMS_TO_TICKS(10));
+                btnPressedDebounced &= ~(1 << 4); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                 vTaskDelay(pdMS_TO_TICKS(10));
                 btnHeldDebounced &= ~(1 << 4); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
             }else if(i==0 && ch == 'b') {
+                btnPressedDebounced |= (1 << 5); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                 btnHeldDebounced |= (1 << 5); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                vTaskDelay(pdMS_TO_TICKS(10));
+                btnPressedDebounced &= ~(1 << 5); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                 vTaskDelay(pdMS_TO_TICKS(10));
                 btnHeldDebounced &= ~(1 << 5); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
             }else if(i==0 && ch == 'x') {
+                btnPressedDebounced |= (1 << 8); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                 btnHeldDebounced |= (1 << 8); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                vTaskDelay(pdMS_TO_TICKS(10));
+                btnPressedDebounced &= ~(1 << 8); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                 vTaskDelay(pdMS_TO_TICKS(10));
                 btnHeldDebounced &= ~(1 << 8); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
             }else if(i==0 && ch == 'A') {
@@ -254,19 +264,31 @@ static void NuttyInput_UART(void *arg) {
                 if(i==1 && ch == 0x5b) { buf[i]=ch; i++; reset=false; }
                 if(i==2) {
                     if(ch == 0x41) { // Arrow key UP
+                        btnPressedDebounced |= (1 << 0);  // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                         btnHeldDebounced |= (1 << 0); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                        vTaskDelay(pdMS_TO_TICKS(10));
+                        btnPressedDebounced &= ~(1 << 0); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                         vTaskDelay(pdMS_TO_TICKS(10));
                         btnHeldDebounced &= ~(1 << 0); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                     }else if(ch == 0x42) {  // Arrow key DOWN
+                        btnPressedDebounced |= (1 << 1);  // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                         btnHeldDebounced |= (1 << 1); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                        vTaskDelay(pdMS_TO_TICKS(10));
+                        btnPressedDebounced &= ~(1 << 1); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                         vTaskDelay(pdMS_TO_TICKS(10));
                         btnHeldDebounced &= ~(1 << 1); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                     }else if(ch == 0x43) {  // Arrow key RIGHT
+                        btnPressedDebounced |= (1 << 3);  // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                         btnHeldDebounced |= (1 << 3); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                         vTaskDelay(pdMS_TO_TICKS(10));
-                        btnHeldDebounced &= ~(1 << 3); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                        btnPressedDebounced &= ~(1 << 3); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                        vTaskDelay(pdMS_TO_TICKS(10));
+                        btnHeldDebounced &= ~(1 << 1); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                     }else if(ch == 0x44) {  // Arrow key LEFT
+                        btnPressedDebounced |= (1 << 2); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                         btnHeldDebounced |= (1 << 2); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                        vTaskDelay(pdMS_TO_TICKS(10));
+                        btnPressedDebounced &= ~(1 << 2); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                         vTaskDelay(pdMS_TO_TICKS(10));
                         btnHeldDebounced &= ~(1 << 2); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                     }

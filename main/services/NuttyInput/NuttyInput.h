@@ -33,10 +33,10 @@ typedef struct _NuttyInputLVGLInputMapping {
 } NuttyInputLVGLInputMapping;
 
 void ioe_isr_handler(void* arg);
-bool isOneOfTheButtonsPressed(uint16_t);
-void waitSingleButtonHoldAndReleased(uint16_t btn);
-bool waitSingleButtonHoldAndReleasedNonBlock(uint16_t btn);
-void clearButtonHoldState(uint16_t btn);
+bool NuttyInput_isOneOfTheButtonsCurrentlyPressed(uint16_t);
+void NuttyInput_waitSingleButtonHoldAndReleasedBlocking(uint16_t btn);
+bool NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(uint16_t btn);
+void NuttyInput_clearButtonHoldState(uint16_t btn);
 lv_indev_t* NuttyInput_UpdateLVGLInDev(NuttyInputLVGLInputMapping mapping);
 
 esp_err_t NuttyInput_Init();

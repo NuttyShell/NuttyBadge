@@ -194,7 +194,7 @@ void NuttyDisplay_clearSystemTrayArea() {
 }
 
 void NuttyDisplay_setLCDBacklight(uint8_t percentage) {
-    nuttyDriverLCD.setBacklightDutyCycle(percentage << 2);
+    nuttyDriverLCD.setBacklightDutyCycle(percentage << 1);
 }
 
 esp_err_t NuttyDisplay_Init() {

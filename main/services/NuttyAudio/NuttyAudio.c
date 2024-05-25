@@ -11,9 +11,15 @@ static uint16_t playHz = 0;
 static uint16_t playHzDuration=0;
 static uint16_t playHzTotalDuration=0;
 static uint8_t toneVolume=0;
+static bool playedFirstTime = false;
 
 static void NuttyAudio_Worker(void *pvParameters) {
     size_t bytesWritten=0;
+    ESP_LOGI(TAG, "Audio Worker starting...");
+    if(!playedFirstTime) { // Workaround for pwm_audio_write will return immediately when calling for the first time.
+        playedFirstTime = true;
+        pwm_audio_write(playBuf, playBufSz, &bytesWritten, pdMS_TO_TICKS(100));
+    }
     while(true) {
         if(playHz == 0 && playBuf != NULL && playBufLoc != playBufSz) {
             // Play Buffer
@@ -21,7 +27,7 @@ static void NuttyAudio_Worker(void *pvParameters) {
             ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0);
             ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
             while(playBufLoc != playBufSz) {
-                pwm_audio_write(playBuf + playBufLoc, playBufSz - playBufLoc, &bytesWritten, 100 / portTICK_PERIOD_MS);
+                pwm_audio_write(playBuf + playBufLoc, playBufSz - playBufLoc, &bytesWritten, pdMS_TO_TICKS(200));
                 playBufLoc += bytesWritten;
                 //ESP_LOGI(TAG, "Audio: Written = %u; Left=%u", bytesWritten, (playBufSz - playBufLoc));
             }
@@ -38,7 +44,7 @@ static void NuttyAudio_Worker(void *pvParameters) {
             ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0);
             ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
         }
-        vTaskDelay(1000/portTICK_PERIOD_MS);
+        vTaskDelay(200/portTICK_PERIOD_MS);
     }
 }
 
@@ -115,8 +121,15 @@ esp_err_t NuttyAudio_PlayTone(uint16_t hz, uint16_t duration_100ms) {
     playHzDuration=0;
     playHzTotalDuration=duration_100ms;
 
-    xTaskCreate(&NuttyAudio_Worker, "audio_worker", 4096, NULL, 4, &NuttyAudio_WorkerHandle);
+    xTaskCreate(NuttyAudio_Worker, "audio_worker", 8192, NULL, 4, &NuttyAudio_WorkerHandle);
 
+    return ESP_OK;
+}
+
+esp_err_t NuttyAudio_StopPlaying() {
+    if(!NuttyAudioInitialized) return ESP_ERR_INVALID_STATE;
+    if(NuttyAudio_WorkerHandle != NULL) vTaskDelete(NuttyAudio_WorkerHandle);
+    NuttyAudio_WorkerHandle = NULL;
     return ESP_OK;
 }
 

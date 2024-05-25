@@ -92,8 +92,8 @@ void app_main(void) {
     ESP_ERROR_CHECK(nuttyDriverRGB.initRGB(3));
     ESP_ERROR_CHECK(nuttyDriverIR.initIRTx());
     ESP_ERROR_CHECK(nuttyDriverIR.initIRRx());
-    ESP_LOGI(TAG, "SD Init...");
-    ESP_ERROR_CHECK(nuttyDriverSDCard.initSDCard());
+    //ESP_LOGI(TAG, "SD Init...");
+    //ESP_ERROR_CHECK(nuttyDriverSDCard.initSDCard());
     //if(!nuttyDriverSDCard.isSDCardMounted()) {
     //    ESP_LOGI(TAG, "SD Mount...");
     //    ESP_ERROR_CHECK(nuttyDriverSDCard.mountSDCard());
@@ -111,6 +111,7 @@ void app_main(void) {
     //NuttyAudio_PlayBuffer(ussr_start, 773508);
     //NuttyAudio_PlayBuffer(ussr_48k_start, 1160260);
     NuttyInput_Init();
+    NuttyStorage_Init();
     NuttySystemMonitor_Init();
     NuttySystemMonitor_hideSystemTray();
     //NuttyRGB_Init();
@@ -144,7 +145,7 @@ void app_main(void) {
     NuttyApps_registerApp(NuttySettings);
     NuttyApps_registerApp(NuttyAbout);
     NuttyApps_printApps();
-    NuttyApps_launchAppByIndex(4);
+    NuttyApps_launchAppByIndex(0);
 
     return;
     while(true) {
@@ -176,7 +177,7 @@ void app_main(void) {
         }
 
         bool _played=false;
-        //NuttyAudio_FinishedPlayed(&_played);
+        NuttyAudio_FinishedPlayed(&_played);
         if(_played) { 
             if(x%2 == 0) {
                 ESP_LOGI(TAG, "BEEP");
@@ -205,7 +206,7 @@ void app_main(void) {
         }
         if(NuttyInput_isOneOfTheButtonsCurrentlyPressed(NUTTYINPUT_BTN_USRDEF)) {
             int batt = NuttySystemMonitor_getBatteryVoltage();
-            ESP_LOGI(TAG, "BATT=%d; LV_BAT=%d; VBUS=%d; SDM=%d, SDCD=%d;", batt, NuttySystemMonitor_isLowBattery(), NuttySystemMonitor_isVBUSConnected(), NuttySystemMonitor_isSDCardMounted(), NuttySystemMonitor_isSDCardInserted());
+            ESP_LOGI(TAG, "BATT=%d; LV_BAT=%d; VBUS=%d; SDM=%d, SDCD=%d;", batt, NuttySystemMonitor_isLowBattery(), NuttySystemMonitor_isVBUSConnected(), NuttyStorage_isSDCardMounted(), NuttyStorage_isSDCardInserted());
 
         }
         if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_UP)) {

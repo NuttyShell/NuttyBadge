@@ -92,8 +92,7 @@ static esp_err_t init_sd_card() {
         card = (sdmmc_card_t*)malloc(sizeof(sdmmc_card_t));
     }
     assert(card != NULL);
-    nuttyPeripherals.initSDCard(card);
-    return ESP_OK;
+    return nuttyPeripherals.initSDCard(card);
 }
 
 static void print_sd_card_info() {
@@ -102,6 +101,31 @@ static void print_sd_card_info() {
         return;
     }
     sdmmc_card_print_info(stdout, card);
+}
+
+static esp_err_t get_sd_size_mb(uint64_t *size_mb) {
+    if(card == NULL) {
+        ESP_LOGE(TAG, "Card not yet initialized.");
+        return ESP_ERR_INVALID_STATE;
+    }
+    *size_mb = ((uint64_t) card->csd.capacity) * card->csd.sector_size / (1024 * 1024);
+    return ESP_OK;
+}
+
+static esp_err_t get_sd_type(char **type) {
+    if(card == NULL) {
+        ESP_LOGE(TAG, "Card not yet initialized.");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (card->is_sdio) {
+        *type = "SDIO";
+    } else if (card->is_mmc) {
+        *type = "MMC";
+    } else {
+        *type = (card->ocr & SD_OCR_SDHC_CAP) ? "SDHC/SDXC" : "SDSC";
+    }
+    return ESP_OK;
 }
 
 static char *sd_path = NULL;
@@ -127,6 +151,10 @@ static esp_err_t unmount_sd_card() {
     //card = NULL;
     ESP_LOGI(TAG, "Unmounted");
     return ESP_OK;
+}
+
+static bool is_sd_card_persist() {
+   return sdmmc_get_status(card) == ESP_OK; 
 }
 
 static bool is_sd_card_mounted() {
@@ -274,6 +302,10 @@ NuttyDriverSDCard nuttyDriverSDCard = {
     .mountSDCard = mount_sd_card,
     .unmountSDCard = unmount_sd_card,
     .isSDCardMounted = is_sd_card_mounted,
+    .isSDCardPersist = is_sd_card_persist,
+    .getCardInserted = get_card_detect_inserted,
+    .getSDCardSizeMB = get_sd_size_mb,
+    .getSDCardType = get_sd_type,
     .getCardInserted = get_card_detect_inserted,
     .lsDir = ls_dir
 };

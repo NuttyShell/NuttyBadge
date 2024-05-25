@@ -4,7 +4,7 @@ static const char* TAG = "NuttySystemMonitor";
 
 static SemaphoreHandle_t sysmon_semaphore;
 static int NuttySystemMonitor_BatteryVoltage=0;
-static uint8_t NuttySystemMonitor_Status=0x00; // 0000 {SD_MNT} {SD_CD} {VBUS} {BATT_LOW}
+static uint8_t NuttySystemMonitor_Status=0x00; // 000000 {VBUS} {BATT_LOW}
 
 static SemaphoreHandle_t systemtray_semaphore;
 static bool showSystemTray = true;
@@ -33,22 +33,6 @@ bool NuttySystemMonitor_isVBUSConnected() {
     s=NuttySystemMonitor_Status;
     xSemaphoreGive(sysmon_semaphore);
     return ((s & 0x02) == 0x02);
-}
-
-bool NuttySystemMonitor_isSDCardInserted() {
-    uint8_t s=0;
-    while(xSemaphoreTake(sysmon_semaphore, (TickType_t)10) != pdTRUE);
-    s=NuttySystemMonitor_Status;
-    xSemaphoreGive(sysmon_semaphore);
-    return ((s & 0x04) == 0x04);
-}
-
-bool NuttySystemMonitor_isSDCardMounted() {
-    uint8_t s=0;
-    while(xSemaphoreTake(sysmon_semaphore, (TickType_t)10) != pdTRUE);
-    s=NuttySystemMonitor_Status;
-    xSemaphoreGive(sysmon_semaphore);
-    return ((s & 0x08) == 0x08);
 }
 
 // Hide system tray
@@ -148,8 +132,8 @@ static void NuttySystemMonitor_Worker(void* arg) {
                 lv_obj_add_style(lbl, &system_tray_style, LV_PART_MAIN);
                 //lv_obj_set_size(lbl, lv_obj_get_width(tray), lv_obj_get_height(tray));
                 lv_label_set_text_fmt(lbl, "SD=%s M=%s BAT=%04d[%s]", 
-                boolToYN(NuttySystemMonitor_isSDCardInserted()), 
-                boolToYN(NuttySystemMonitor_isSDCardMounted()), 
+                boolToYN(NuttyStorage_isSDCardInserted()), 
+                boolToYN(NuttyStorage_isSDCardMounted()), 
                 NuttySystemMonitor_getBatteryVoltage(),
                 boolToLoOK(NuttySystemMonitor_isLowBattery()));
                 lv_obj_center(lbl);

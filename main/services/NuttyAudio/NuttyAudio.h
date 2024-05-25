@@ -14,5 +14,6 @@ esp_err_t NuttyAudio_FinshedPlayedBuffer(bool *status);
 esp_err_t NuttyAudio_FinshedPlayedTone(bool *status);
 esp_err_t NuttyAudio_FinishedPlayed(bool *status);
 esp_err_t NuttyAudio_SetVolume(int8_t volume);
+esp_err_t NuttyAudio_StopPlaying();
 
 #endif /* _NUTTYAUDIO_H_ */

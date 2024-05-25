@@ -14,6 +14,7 @@ idf_component_register(
                     SRCS "services/NuttyDisplay/NuttyDisplay.c"
                     SRCS "services/NuttyRGB/NuttyRGB.c"
                     SRCS "services/NuttyIR/NuttyIR.c"
+                    SRCS "services/NuttyStorage/NuttyStorage.c"
                     SRCS "services/NuttyApps/NuttyApps.c"
                     SRCS ""
                     SRCS "lvgl_fonts/cg_pixel_4x5_mono.c"

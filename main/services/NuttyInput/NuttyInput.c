@@ -26,7 +26,7 @@ void IRAM_ATTR ioe_isr_handler(void* arg) {
 static uint16_t btnPressedDebounced=0; // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
 static uint16_t btnHeldDebounced=0; // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
 static uint16_t btnHeldLongDebounced=0; // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
-static uint16_t btnHeldAndReleasedDebounced=0; // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+//static uint16_t btnHeldAndReleasedDebounced=0; // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
 static void NuttyInput_Worker(void* arg) {
     uint8_t ioeReadout, i;
     uint16_t btnPressed; // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
@@ -94,7 +94,7 @@ static void NuttyInput_Worker(void* arg) {
                 }else if(holdCounter[i] <= BTN_DEBOUNCE_PRESSED_THRESHOLD && !(btnHeldDebounced & (1 << i))){
                     btnHeldDebounced &= ~(1 << i);
                 }
-                if(holdCounter[i] > BTN_DEBOUNCE_PRESSED_THRESHOLD*10) { // "Double" debounce
+                if(holdCounter[i] > BTN_DEBOUNCE_PRESSED_THRESHOLD*20) { // "Double" debounce
                     btnHeldLongDebounced |= (1 << i);
                 }else if(holdCounter[i] <= BTN_DEBOUNCE_PRESSED_THRESHOLD && !(btnHeldLongDebounced & (1 << i))){
                     btnHeldLongDebounced &= ~(1 << i);

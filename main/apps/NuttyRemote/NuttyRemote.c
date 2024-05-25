@@ -94,20 +94,26 @@ static void DebugAndReplay() {
             // Determine Type
             if(((irAddr & 0x00FF) & (irAddr >> 8)) == 0x0000 && ((irCmd & 0x00FF) & (irCmd >> 8)) == 0x0000) {
                 irType = 1;
+                NuttyDisplay_lockLVGL();
                 lv_label_set_text(lblMode, "Mode: NEC");
                 lv_label_set_text_fmt(lblAddr, "Addr: 0x%02X", irAddr & 0xff);
                 lv_label_set_text_fmt(lblCmd, "Cmd: 0x%02X", irCmd & 0xff);
+                NuttyDisplay_unlockLVGL();
             }else{
                 irType = 2;
+                NuttyDisplay_lockLVGL();
                 lv_label_set_text(lblMode, "Mode: NECext");
                 lv_label_set_text_fmt(lblAddr, "Addr: 0x%04X", irAddr);
                 lv_label_set_text_fmt(lblCmd, "Cmd: 0x%04X", irCmd);
+                NuttyDisplay_unlockLVGL();
             }
         }else if(irStatus == 1 || irStatus == 3) {
             irType = 0; // Error when recv IR
+            NuttyDisplay_lockLVGL();
             lv_label_set_text(lblMode, "Mode: ERR");
             lv_label_set_text(lblAddr, "Addr: ERR");
             lv_label_set_text(lblCmd, "Cmd: ERR");
+            NuttyDisplay_unlockLVGL();
         }
 
         if(replayOnce) {

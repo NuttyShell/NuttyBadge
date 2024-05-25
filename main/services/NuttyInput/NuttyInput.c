@@ -25,6 +25,7 @@ void IRAM_ATTR ioe_isr_handler(void* arg) {
 
 static uint16_t btnPressedDebounced=0; // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
 static uint16_t btnHeldDebounced=0; // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+static uint16_t btnHeldLongDebounced=0; // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
 static uint16_t btnHeldAndReleasedDebounced=0; // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
 static void NuttyInput_Worker(void* arg) {
     uint8_t ioeReadout, i;
@@ -93,6 +94,11 @@ static void NuttyInput_Worker(void* arg) {
                 }else if(holdCounter[i] <= BTN_DEBOUNCE_PRESSED_THRESHOLD && !(btnHeldDebounced & (1 << i))){
                     btnHeldDebounced &= ~(1 << i);
                 }
+                if(holdCounter[i] > BTN_DEBOUNCE_PRESSED_THRESHOLD*10) { // "Double" debounce
+                    btnHeldLongDebounced |= (1 << i);
+                }else if(holdCounter[i] <= BTN_DEBOUNCE_PRESSED_THRESHOLD && !(btnHeldLongDebounced & (1 << i))){
+                    btnHeldLongDebounced &= ~(1 << i);
+                }
             }
         }
         nuttyDriverIOE.lockIOE();
@@ -142,6 +148,7 @@ void NuttyInput_waitSingleButtonHoldAndReleasedBlocking(uint16_t btn) {
 // Clear button held state, used with `NuttyInput_waitSingleButtonHoldAndReleasedNonBlock`
 void NuttyInput_clearButtonHoldState(uint16_t btn) {
     btnHeldDebounced &= ~btn;
+    btnHeldLongDebounced &= ~btn;
 }
 
 // Wait the given button is being pressed and released (non-blocking)
@@ -151,6 +158,15 @@ bool NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(uint16_t btn) {
             NuttyInput_clearButtonHoldState(btn);
             return true;
         }
+    }
+    return false;
+}
+
+// Wait the given button is being pressed for prolonged time (non-blocking)
+bool NuttyInput_waitSingleButtonHoldLongNonBlock(uint16_t btn) {
+    if(btnHeldLongDebounced & btn) {
+        NuttyInput_clearButtonHoldState(btn);
+        return true;
     }
     return false;
 }
@@ -177,31 +193,31 @@ static void lvgl_keypad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data)
         while(xSemaphoreTake(lvglInputSemaphore, portMAX_DELAY) != pdTRUE);
         switch(keyPress) {
             case 1 << 0:
-                keyPress = lvgl_mapping.UP;
+                keyPress = lvgl_mapping.UP; printf("LVGL:UP\n");
                 break;
             case 1 << 1:
-                keyPress = lvgl_mapping.DOWN;
+                keyPress = lvgl_mapping.DOWN; printf("LVGL:DN\n");
                 break;
             case 1 << 2:
-                keyPress = lvgl_mapping.LEFT;
+                keyPress = lvgl_mapping.LEFT;  printf("LVGL:LT\n");
                 break;
             case 1 << 3:
-                keyPress = lvgl_mapping.RIGHT;
+                keyPress = lvgl_mapping.RIGHT;  printf("LVGL:RT\n");
                 break;
             case 1 << 4:
-                keyPress = lvgl_mapping.A;
+                keyPress = lvgl_mapping.A;  printf("LVGL:A\n");
                 break;
             case 1 << 5:
-                keyPress = lvgl_mapping.B;
+                keyPress = lvgl_mapping.B;  printf("LVGL:B\n");
                 break;
             case 1 << 6:
-                keyPress = lvgl_mapping.SELECT;
+                keyPress = lvgl_mapping.SELECT;  printf("LVGL:SE\n");
                 break;
             case 1 << 7:
-                keyPress = lvgl_mapping.START;
+                keyPress = lvgl_mapping.START;  printf("LVGL:ST\n");
                 break;
             case 1 << 8:
-                keyPress = lvgl_mapping.USRDEF;
+                keyPress = lvgl_mapping.USRDEF;  printf("LVGL:UD\n");
                 break;
         }
         xSemaphoreGive(lvglInputSemaphore);
@@ -257,6 +273,13 @@ static void NuttyInput_UART(void *arg) {
                 btnPressedDebounced &= ~(1 << 8); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                 vTaskDelay(pdMS_TO_TICKS(10));
                 btnHeldDebounced &= ~(1 << 8); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+            }else if(i==0 && ch == 's') {
+                btnPressedDebounced |= (1 << 7); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                btnHeldDebounced |= (1 << 7); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                vTaskDelay(pdMS_TO_TICKS(10));
+                btnPressedDebounced &= ~(1 << 7); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                vTaskDelay(pdMS_TO_TICKS(10));
+                btnHeldDebounced &= ~(1 << 7); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
             }else if(i==0 && ch == 'A') {
                 print_lcd_frame_buffer();
             }else{

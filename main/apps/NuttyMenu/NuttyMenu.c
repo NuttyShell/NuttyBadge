@@ -73,16 +73,7 @@ static void nutty_main(void) {
             return; // ends nutty_main
         }
         vTaskDelay(pdMS_TO_TICKS(100));
-    }
-
-    
-        //lv_obj_t *label2 = lv_label_create(appArea);
-        //lv_label_set_long_mode(label2, LV_LABEL_LONG_SCROLL_CIRCULAR);
-        //lv_obj_set_style_anim_speed(label2, 4, LV_PART_MAIN);
-        //lv_obj_set_width(label2, 150);
-        //lv_label_set_text(label2, "It is a circularly scrolling text. ");
-        //lv_obj_align(label2, LV_ALIGN_BOTTOM_LEFT, 0, 0);
-        
+    }        
 }
 
 NuttyAppDefinition NuttyMenu = {

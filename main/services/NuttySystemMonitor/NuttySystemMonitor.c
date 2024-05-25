@@ -5,7 +5,11 @@ static const char* TAG = "NuttySystemMonitor";
 static SemaphoreHandle_t sysmon_semaphore;
 static int NuttySystemMonitor_BatteryVoltage=0;
 static uint8_t NuttySystemMonitor_Status=0x00; // 0000 {SD_MNT} {SD_CD} {VBUS} {BATT_LOW}
+
+static SemaphoreHandle_t systemtray_semaphore;
 static bool showSystemTray = true;
+static char *systemTrayTempText = NULL;
+static uint8_t systemTrayTempTextDuration = 0;
 
 int NuttySystemMonitor_getBatteryVoltage() {
     int v=0;
@@ -47,12 +51,22 @@ bool NuttySystemMonitor_isSDCardMounted() {
     return ((s & 0x08) == 0x08);
 }
 
+// Hide system tray
 void NuttySystemMonitor_hideSystemTray() {
     showSystemTray=false;
 }
 
+// Show system tray
 void NuttySystemMonitor_showSystemTray() {
     showSystemTray=true;
+}
+
+
+void NuttySystemMonitor_setSystemTrayTempText(char *text, uint8_t durationSecond) {
+    while(xSemaphoreTake(systemtray_semaphore, portMAX_DELAY) != pdTRUE);
+    systemTrayTempText = text;
+    systemTrayTempTextDuration = durationSecond;
+    xSemaphoreGive(systemtray_semaphore);
 }
 
 static const char *boolToYN(bool in) {
@@ -122,21 +136,36 @@ static void NuttySystemMonitor_Worker(void* arg) {
         xSemaphoreGive(sysmon_semaphore);
 
         // Draw System Info in Tray Area of LCD
+        while(xSemaphoreTake(systemtray_semaphore, portMAX_DELAY) != pdTRUE);
         NuttyDisplay_clearSystemTrayArea();
         if(showSystemTray) {
-            lv_obj_t *tray = NuttyDisplay_getSystemTrayArea();
-            NuttyDisplay_lockLVGL();
-            lv_obj_t *lbl = lv_label_create(tray);
-            lv_obj_add_style(lbl, &system_tray_style, LV_PART_MAIN);
-            //lv_obj_set_size(lbl, lv_obj_get_width(tray), lv_obj_get_height(tray));
-            lv_label_set_text_fmt(lbl, "SD=%s M=%s BAT=%04d[%s]", 
-            boolToYN(NuttySystemMonitor_isSDCardInserted()), 
-            boolToYN(NuttySystemMonitor_isSDCardMounted()), 
-            NuttySystemMonitor_getBatteryVoltage(),
-            boolToLoOK(NuttySystemMonitor_isLowBattery()));
-            lv_obj_center(lbl);
-            NuttyDisplay_unlockLVGL();
+            if(systemTrayTempTextDuration == 0 || systemTrayTempText == NULL) {
+                systemTrayTempTextDuration = 0;
+                systemTrayTempText = NULL;
+                lv_obj_t *tray = NuttyDisplay_getSystemTrayArea();
+                NuttyDisplay_lockLVGL();
+                lv_obj_t *lbl = lv_label_create(tray);
+                lv_obj_add_style(lbl, &system_tray_style, LV_PART_MAIN);
+                //lv_obj_set_size(lbl, lv_obj_get_width(tray), lv_obj_get_height(tray));
+                lv_label_set_text_fmt(lbl, "SD=%s M=%s BAT=%04d[%s]", 
+                boolToYN(NuttySystemMonitor_isSDCardInserted()), 
+                boolToYN(NuttySystemMonitor_isSDCardMounted()), 
+                NuttySystemMonitor_getBatteryVoltage(),
+                boolToLoOK(NuttySystemMonitor_isLowBattery()));
+                lv_obj_center(lbl);
+                NuttyDisplay_unlockLVGL();
+            }else{
+                lv_obj_t *tray = NuttyDisplay_getSystemTrayArea();
+                NuttyDisplay_lockLVGL();
+                lv_obj_t *lbl = lv_label_create(tray);
+                lv_obj_add_style(lbl, &system_tray_style, LV_PART_MAIN);
+                lv_label_set_text(lbl, systemTrayTempText);
+                lv_obj_center(lbl);
+                NuttyDisplay_unlockLVGL();
+                systemTrayTempTextDuration -= 1;
+            }
         }
+        xSemaphoreGive(systemtray_semaphore);
 
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
@@ -144,10 +173,18 @@ static void NuttySystemMonitor_Worker(void* arg) {
     
 }
 
+esp_err_t NuttySystemMonitor_Deinit() {
+    ESP_LOGI(TAG, "Deinit");
+    abort(); // This NuttyService is not allowed to deinit
+    return ESP_FAIL;
+}
+
 esp_err_t NuttySystemMonitor_Init() {
     ESP_LOGI(TAG, "Init");
 	sysmon_semaphore = xSemaphoreCreateMutex();
+	systemtray_semaphore = xSemaphoreCreateMutex();
 	assert(sysmon_semaphore != NULL);
+	assert(systemtray_semaphore != NULL);
     xTaskCreatePinnedToCore(NuttySystemMonitor_Worker, "sysmon_worker", 4096, NULL, 10, NULL, 1);
     return ESP_OK;
 }

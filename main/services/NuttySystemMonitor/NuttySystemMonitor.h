@@ -18,5 +18,6 @@ bool NuttySystemMonitor_isSDCardInserted();
 bool NuttySystemMonitor_isSDCardMounted();
 void NuttySystemMonitor_hideSystemTray();
 void NuttySystemMonitor_showSystemTray();
+void NuttySystemMonitor_setSystemTrayTempText(char *text, uint8_t durationSecond);
 
 #endif /* _NUTTYSYSTEMMONITOR_H */

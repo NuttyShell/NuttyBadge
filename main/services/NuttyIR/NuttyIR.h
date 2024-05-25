@@ -9,7 +9,9 @@
 #include <esp_log.h>
 
 esp_err_t NuttyIR_Init();
-void NuttyIR_Replay();
-//void NuttyIR_waitForValidIRSignal();
+esp_err_t NuttyIR_Deinit();
+void NuttyIR_TxNEC(uint16_t _addr, uint16_t _cmd);
+void NuttyIR_TxNECext(uint16_t _addr, uint16_t _cmd);
+void NuttyIR_getLatestRecvResult(uint16_t *_addr, uint16_t *_cmd, uint8_t *_status);
 
 #endif /* _NUTTYIR_H */

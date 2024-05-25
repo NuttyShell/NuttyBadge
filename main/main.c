@@ -75,7 +75,7 @@ void app_main(void) {
     vTaskDelay(pdMS_TO_TICKS(200));
 
     // Show NuttyShell boot screen
-    NuttyDisplay_showPNG(boot_icon_start, boot_icon_end - boot_icon_start);
+    NuttyDisplay_showPNG((uint8_t *)boot_icon_start, boot_icon_end - boot_icon_start);
     vTaskDelay(pdMS_TO_TICKS(1500));
     NuttyDisplay_clearWholeScreen();
 
@@ -89,11 +89,11 @@ void app_main(void) {
     NuttyDisplay_unlockLVGL();
 
     // Doing the inits
-    //ESP_ERROR_CHECK(nuttyDriverRGB.initRGB(3));
+    ESP_ERROR_CHECK(nuttyDriverRGB.initRGB(3));
     ESP_ERROR_CHECK(nuttyDriverIR.initIRTx());
-    //ESP_ERROR_CHECK(nuttyDriverIR.initIRRx());
-    //ESP_LOGI(TAG, "SD Init...");
-    //ESP_ERROR_CHECK(nuttyDriverSDCard.initSDCard());
+    ESP_ERROR_CHECK(nuttyDriverIR.initIRRx());
+    ESP_LOGI(TAG, "SD Init...");
+    ESP_ERROR_CHECK(nuttyDriverSDCard.initSDCard());
     //if(!nuttyDriverSDCard.isSDCardMounted()) {
     //    ESP_LOGI(TAG, "SD Mount...");
     //    ESP_ERROR_CHECK(nuttyDriverSDCard.mountSDCard());
@@ -114,7 +114,6 @@ void app_main(void) {
     NuttySystemMonitor_Init();
     NuttySystemMonitor_hideSystemTray();
     //NuttyRGB_Init();
-    //NuttyIR_Init();
     NuttyApps_Init();
     ESP_ERROR_CHECK(nuttyPeripherals.initGPIOISR(ioe_isr_handler, NULL)); // Must AFTER Nutty Services Start as task handle must available for ISR
 
@@ -145,7 +144,7 @@ void app_main(void) {
     NuttyApps_registerApp(NuttySettings);
     NuttyApps_registerApp(NuttyAbout);
     NuttyApps_printApps();
-    NuttyApps_launchAppByIndex(0);
+    NuttyApps_launchAppByIndex(4);
 
     return;
     while(true) {

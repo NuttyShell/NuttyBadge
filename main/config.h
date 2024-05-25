@@ -98,4 +98,6 @@ G45-G48 On-board Camera Port
 
 #define SDCARD_MOUNT_POINT "/sdcard"
 
+#define NUTTYOS_VERSION "v0.1a"
+
 #endif /* _CONFIG_h */

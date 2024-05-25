@@ -22,6 +22,7 @@ static void nutty_main(void) {
     NuttyDisplay_lockLVGL();
     lv_obj_t *lbl = lv_label_create(lv_scr_act());
     lv_obj_t *lbl2 = lv_label_create(lv_scr_act());
+    lv_obj_t *lbl3 = lv_label_create(lv_scr_act());
     lv_label_set_text(lbl, "Build Date:");
     lv_obj_add_style(lbl, &text_style, LV_PART_MAIN);
     lv_obj_align(lbl, LV_ALIGN_BOTTOM_LEFT, 58, -9);
@@ -32,6 +33,11 @@ static void nutty_main(void) {
     lv_label_set_long_mode(lbl2, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_anim_speed(lbl2, 2, LV_PART_MAIN);
     lv_obj_set_width(lbl2, 58);
+
+    lv_label_set_text(lbl3, NUTTYOS_VERSION);
+    lv_obj_add_style(lbl3, &text_style, LV_PART_MAIN);
+    lv_obj_align(lbl3, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+    lv_obj_set_width(lbl3, 25);
     NuttyDisplay_unlockLVGL();
 
     // Not using any LVGL input device here, as we are not using LVGL widgets for navigation

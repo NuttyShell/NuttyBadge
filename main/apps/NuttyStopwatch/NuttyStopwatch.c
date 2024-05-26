@@ -148,7 +148,7 @@ static void countdown(){
     uint16_t counter = 0;
     int8_t underline_location = 0;
     NuttyInput_clearButtonHoldState(0x1ff);
-    ESP_LOGI(TAG, "Started NuttyStopWatch");
+    ESP_LOGI(TAG, "Started Countdown");
     while(1){
         vTaskDelay(pdMS_TO_TICKS(10));
         if(timer_enable){
@@ -184,7 +184,7 @@ static void countdown(){
                 counter = 10;
                 select_time(lbl_underline, 4);
             }else{
-                cnt_time -= ((uint32_t)esp_timer_get_time() - start_time);
+                cnt_time -= ((uint32_t)esp_timer_get_time() - start_time) / 100000;
             }
             timer_enable = !timer_enable;
         }
@@ -225,6 +225,7 @@ static void countdown(){
             }
             if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_LEFT)) {
                 underline_location--;
+                underline_location+=4;
                 underline_location %=4;
                 select_time(lbl_underline, underline_location);
             }

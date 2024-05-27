@@ -41,9 +41,9 @@ static void nutty_main(void) {
     NuttyDisplay_unlockLVGL();
 
     // Not using any LVGL input device here, as we are not using LVGL widgets for navigation
-    NuttyInput_clearButtonHoldState(0x1ff);
+    NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
     while(true) {
-        if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(0x1ff)) break;
+        if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_ALL)) break;
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 

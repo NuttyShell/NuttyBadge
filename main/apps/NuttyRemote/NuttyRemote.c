@@ -84,7 +84,7 @@ static void DebugAndReplay() {
     NuttyIR_Init();
     vTaskDelay(pdMS_TO_TICKS(100));
         
-    NuttyInput_clearButtonHoldState(0x1ff);
+    NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
     while(!exit) {
         uint8_t irStatus;
         if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_B)) break; // Press "B" to exit

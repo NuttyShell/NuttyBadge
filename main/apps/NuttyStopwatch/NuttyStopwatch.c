@@ -83,7 +83,7 @@ static void stopwatch(){
     uint32_t start_time = 0, cnt_time = 0;
     bool timer_enable = false;
     uint8_t counter = 0;
-    NuttyInput_clearButtonHoldState(0x1ff);
+    NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
     ESP_LOGI(TAG, "Started NuttyStopWatch");
     while(1){
         vTaskDelay(pdMS_TO_TICKS(10));
@@ -147,7 +147,7 @@ static void countdown(){
     bool timer_enable = false, end = false, flash = false;
     uint16_t counter = 0;
     int8_t underline_location = 0;
-    NuttyInput_clearButtonHoldState(0x1ff);
+    NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
     ESP_LOGI(TAG, "Started Countdown");
     while(1){
         vTaskDelay(pdMS_TO_TICKS(10));

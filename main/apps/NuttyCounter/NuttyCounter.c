@@ -25,7 +25,7 @@ static void nutty_main(void) {
     lv_obj_align(lblInstruction, LV_ALIGN_TOP_LEFT, 0, 28);
     NuttyDisplay_unlockLVGL();
 
-    NuttyInput_clearButtonHoldState(0x1ff);
+    NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
     uint32_t count=0;
     while(true) {
         if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_LEFT)) break;

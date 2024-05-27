@@ -221,7 +221,7 @@ static void lvgl_keypad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data)
                 break;
         }
         xSemaphoreGive(lvglInputSemaphore);
-        NuttyInput_clearButtonHoldState(0x1ff);
+        NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
         last_key = keyPress;
     }else{
         data->state = LV_INDEV_STATE_RELEASED;

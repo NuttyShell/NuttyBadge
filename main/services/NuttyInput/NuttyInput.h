@@ -19,6 +19,7 @@
 #define NUTTYINPUT_BTN_LEFT 0x0004
 #define NUTTYINPUT_BTN_DOWN 0x0002
 #define NUTTYINPUT_BTN_UP 0x0001
+#define NUTTYINPUT_BTN_ALL 0x01ff
 
 typedef struct _NuttyInputLVGLInputMapping {
     lv_key_t UP;

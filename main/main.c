@@ -35,6 +35,7 @@
 #include "apps/NuttyCounter/NuttyCounter.h"
 #include "apps/NuttyBTScanner/NuttyBTScanner.h"
 #include "apps/NuttyStopwatch/NuttyStopwatch.h"
+#include "apps/NuttyFileManager/NuttyFileManager.h"
 #include "apps/NuttySettings/NuttySettings.h"
 #include "apps/NuttyAbout/NuttyAbout.h"
 
@@ -142,6 +143,7 @@ void app_main(void) {
     NuttyApps_registerApp(NuttyCounter);
     NuttyApps_registerApp(NuttyBTScanner);
     NuttyApps_registerApp(NuttyStopwatch);
+    NuttyApps_registerParamedApp(NuttyFileManager);
     NuttyApps_registerApp(NuttySettings);
     NuttyApps_registerApp(NuttyAbout);
     NuttyApps_printApps();

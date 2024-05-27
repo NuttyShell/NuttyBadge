@@ -69,7 +69,11 @@ static void nutty_main(void) {
             NuttyDisplay_clearUserAppArea();
             
             printf("Cleaned up LVGL.\n");
-            NuttyApps_launchAppByIndex(appIndex); // spawns new task
+            if(NuttyApps_isParamedAppByIndex(appIndex) == 1) {
+                NuttyApps_launchParamedAppByIndex(appIndex, 0, NULL); // spawns new task
+            }else{
+                NuttyApps_launchAppByIndex(appIndex); // spawns new task
+            }
             return; // ends nutty_main
         }
         vTaskDelay(pdMS_TO_TICKS(100));

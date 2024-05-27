@@ -46,11 +46,13 @@ static void NuttyStorage_Worker(void* arg) {
     while(true) {
         while(xSemaphoreTake(storage_semaphore, portMAX_DELAY) != pdTRUE);
         if(!sdPersistAndInited) {
-            if(nuttyDriverSDCard.initSDCard() == ESP_OK) {
+            if(nuttyDriverSDCard.getCardInserted() && nuttyDriverSDCard.initSDCard() == ESP_OK) {
                 sdPersistAndInited = true;
                 if(nuttyDriverSDCard.getSDCardSizeMB(&sdSzMb) != ESP_OK) sdSzMb = 0;
                 if(nuttyDriverSDCard.getSDCardType(&sdType) != ESP_OK) sdType = NULL;
-                ESP_LOGI(TAG, "SDCard detected");
+                ESP_LOGI(TAG, "SDCard detected, trying to mount...");
+                nuttyDriverSDCard.mountSDCard();
+                mounted = nuttyDriverSDCard.isSDCardMounted();
                 xSemaphoreGive(storage_semaphore);
             }else{
                 xSemaphoreGive(storage_semaphore);
@@ -59,6 +61,8 @@ static void NuttyStorage_Worker(void* arg) {
         }else{
             if(!nuttyDriverSDCard.isSDCardPersist()) {
                 sdPersistAndInited = false;
+                mounted = false;
+                nuttyDriverSDCard.unmountSDCard();
                 ESP_LOGI(TAG, "SDCard no longer persist");
             }else{
                 mounted = nuttyDriverSDCard.isSDCardMounted();

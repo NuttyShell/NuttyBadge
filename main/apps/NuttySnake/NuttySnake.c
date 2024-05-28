@@ -166,6 +166,13 @@ static void snake_start(){
         if(NuttyInput_waitSingleButtonHoldLongNonBlock(NUTTYINPUT_BTN_SELECT)) break;
         vTaskDelay(pdMS_TO_TICKS(5));
     }
+    _NuttySnakeQueue *tmp, *now = snake;
+    while(now->next != NULL){
+        tmp = now;
+        now = now->next;
+        free(tmp);
+    }
+    free(now);
     NuttyDisplay_clearUserAppArea();
 }
 

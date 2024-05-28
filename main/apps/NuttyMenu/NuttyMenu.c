@@ -43,12 +43,16 @@ static void nutty_main(void) {
 
     lv_obj_t *mainPage = lv_menu_page_create(menu, NULL);
     lv_obj_t *cont, *label;
+    lv_style_t text_style;
+    lv_style_init(&text_style);
+    lv_style_set_text_font(&text_style, &lv_font_montserrat_12);
     for(uint8_t i=0; i<NuttyApps_getTotalNumberOfApps(); i++) {
         NuttyAppDefinition app = NuttyApps_getAppByIndex(i);
         if(!app.appHidden) {
             cont = lv_menu_cont_create(mainPage);
             label = lv_label_create(cont);
             lv_label_set_text(label, app.appName);
+            lv_obj_add_style(label, &text_style, LV_PART_MAIN);
             lv_menu_set_load_page_event(menu, cont, NULL);
             lv_obj_add_event_cb(cont, lvgl_on_click_event_handler, LV_EVENT_CLICKED, (void *)&appToStart); 
             lv_obj_add_event_cb(cont, lvgl_on_focus_event_handler, LV_EVENT_FOCUSED, (void *)app.appName);

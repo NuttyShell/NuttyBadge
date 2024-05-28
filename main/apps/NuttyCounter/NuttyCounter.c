@@ -2,38 +2,49 @@
 
 static const char *TAG = "Counter";
 
+
+static lv_obj_t *new_label(char *text, lv_obj_t* drawArea, lv_style_t* style, lv_align_t aligned, lv_coord_t x, lv_coord_t y){
+    lv_obj_t *lbl = lv_label_create(drawArea);
+    lv_label_set_text(lbl, text);
+    lv_obj_add_style(lbl, style, LV_PART_MAIN);
+    lv_obj_align(lbl, aligned, x, y);
+    return lbl;
+}
+
+
 static void nutty_main(void) {
     heap_caps_print_heap_info(MALLOC_CAP_DEFAULT);
 
     ESP_LOGI(TAG, "Starting NuttyCounter...");
 
-    lv_style_t lbl_counter_style, lbl_instruction_style;
-    lv_style_init(&lbl_counter_style);
-    lv_style_init(&lbl_instruction_style);
-    lv_style_set_text_font(&lbl_counter_style, &lv_font_montserrat_16);
-    lv_style_set_text_font(&lbl_instruction_style, &lv_font_montserrat_8);
+
+    lv_style_t lbl_font_big, lbl_font_nano;
+    lv_style_init(&lbl_font_big);
+    lv_style_init(&lbl_font_nano);
+    lv_style_set_text_font(&lbl_font_big, &lv_font_montserrat_18);
+    lv_style_set_text_font(&lbl_font_nano, &cg_pixel_4x5_mono);
+
     lv_obj_t *drawArea = NuttyDisplay_getUserAppArea();
     
     NuttyDisplay_lockLVGL();
     lv_obj_t *lblCount = lv_label_create(drawArea);
-    lv_obj_t *lblInstruction = lv_label_create(drawArea);
     lv_label_set_text(lblCount, "Count: 0");
-    lv_label_set_text(lblInstruction, "            Press [A]: Increase Count\nLong Press [START]: Reset\n            Press [L]: Exit");
-    lv_obj_add_style(lblCount, &lbl_counter_style, LV_PART_MAIN);
-    lv_obj_add_style(lblInstruction, &lbl_instruction_style, LV_PART_MAIN);
+    lv_obj_add_style(lblCount, &lbl_font_big, LV_PART_MAIN);
     lv_obj_align(lblCount, LV_ALIGN_TOP_MID, 0, 8);
-    lv_obj_align(lblInstruction, LV_ALIGN_TOP_LEFT, 0, 28);
+    new_label("Press [A]: Increase Count", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 34);
+    new_label("Hold [B]: RESET", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 40);
+    new_label("HOLD [SELECT]: Exit", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 46);
     NuttyDisplay_unlockLVGL();
 
     NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
     uint32_t count=0;
     while(true) {
-        if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_LEFT)) break;
+        if(NuttyInput_waitSingleButtonHoldLongNonBlock(NUTTYINPUT_BTN_SELECT)) break;
         if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_A)) {
             count += 1;
             lv_label_set_text_fmt(lblCount, "Count: %ld", count);
         }
-        if(NuttyInput_waitSingleButtonHoldLongNonBlock(NUTTYINPUT_BTN_START)) {
+        if(NuttyInput_waitSingleButtonHoldLongNonBlock(NUTTYINPUT_BTN_B)) {
             count = 0;
             lv_label_set_text_fmt(lblCount, "Count: %ld", count);
             NuttySystemMonitor_setSystemTrayTempText("!!Count Resetted!!", 2);

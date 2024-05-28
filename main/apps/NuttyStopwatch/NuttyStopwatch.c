@@ -75,9 +75,9 @@ static void stopwatch(){
     new_label("Stopwatch", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 4);
     lv_obj_t *lbl_m_s = new_label("00:00", drawArea, &lbl_font_big, LV_ALIGN_TOP_MID, 0, 12);
     lv_obj_t *lbl_ms = new_label(".0", drawArea, &lbl_font_nano, LV_ALIGN_TOP_RIGHT, -15, 22);
-    new_label("Press A to START/STOP", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 34);
-    new_label("Hold B to RESET", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 40);
-    new_label("Hold SELECT back to menu", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 46);
+    new_label("Press [A]: START/STOP", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 34);
+    new_label("Hold [B]: RESET", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 40);
+    new_label("Hold [SELECT]: menu page", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 46);
     NuttyDisplay_unlockLVGL();
 
     uint32_t start_time = 0, cnt_time = 0;
@@ -137,10 +137,10 @@ static void countdown(){
     lv_obj_t *lbl_m_s = new_label("00:00", drawArea, &lbl_font_big, LV_ALIGN_TOP_MID, 0, 10);
     lv_obj_t *lbl_underline = new_label("_    ", drawArea, &lbl_font_big, LV_ALIGN_TOP_MID, 0, 12);
     lv_obj_t *lbl_ms = new_label(".0", drawArea, &lbl_font_nano, LV_ALIGN_TOP_RIGHT, -15, 22);
-    new_label("Press A to START/STOP", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 33);
-    new_label("Hold B to RESET", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 39);
-    new_label("Press ARROWS to edit time", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 45);
-    new_label("Hold SELECT back to menu", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 51);
+    new_label("Press [A]: START/STOP", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 33);
+    new_label("Hold [B]: RESET", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 39);
+    new_label("Press [ARROWS]: edit", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 45);
+    new_label("Hold [SELECT]: menu page", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 51);
     NuttyDisplay_unlockLVGL();
 
     uint32_t start_time = 0, cnt_time = 0;

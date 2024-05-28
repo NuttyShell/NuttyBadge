@@ -117,7 +117,8 @@ static void snake_start(){
                 }
                 if(nowX < 1 || nowX > 62 || nowY < 1 || nowY > 27 || snake_map[nowY][nowX]){
                     NuttyDisplay_unlockLVGL();
-                    char lose[26];
+                    char lose[28];
+                    memset(lose, 0x00, sizeof(lose));
                     sprintf(lose, "!!You Lose!!Score: %d!!", score);
                     NuttySystemMonitor_setSystemTrayTempText(lose, 2);
                     vTaskDelay(pdMS_TO_TICKS(1000));
@@ -235,10 +236,10 @@ static void tutorial(){
     lv_obj_t *drawArea = NuttyDisplay_getUserAppArea();
 
     NuttyDisplay_lockLVGL();
-    lv_obj_t * lbl1 = new_label("Press A to START", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 10);
-    lv_obj_t * lbl2 = new_label("Press B to STOP/RESUME", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 20);
-    lv_obj_t * lbl3 = new_label("Press ARROWS to CONTROL", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 30);
-    lv_obj_t * lbl4 = new_label("Hold SELECT back to menu", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 40);
+    new_label("Press [A]: START", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 10);
+    new_label("Press [B]: STOP/RESUME", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 20);
+    new_label("Press [ARROWS]: CONTROL", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 30);
+    new_label("Hold [SELECT]: menu page", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 40);
     NuttyDisplay_unlockLVGL();
     NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
     while(1){

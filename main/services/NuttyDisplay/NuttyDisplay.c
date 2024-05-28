@@ -63,7 +63,7 @@ void print_lcd_frame_buffer() {
         if(lvglFramebuffer[i] == 0) printf(" ");
         //printf("%d", lvglFramebuffer[i]);
     }
-     printf("\n");
+    printf("\n");
     xSemaphoreGive(lcdLock);
 }
 
@@ -127,6 +127,28 @@ void NuttyDisplay_showPNG(uint8_t *pngData, size_t pngSz) {
     lv_obj_align(img, LV_ALIGN_TOP_LEFT, 0, 0);
     NuttyDisplay_unlockLVGL();
 }
+
+
+lv_img_dsc_t NuttyDisplay_getPNGDsc(uint8_t *pngData, size_t pngSz){
+    lv_img_dsc_t lvgl_png_img_wh;
+    lvgl_png_img_wh.header.always_zero = 0;
+    lvgl_png_img_wh.header.w = pngData[19];
+    lvgl_png_img_wh.header.h = pngData[23];
+    lvgl_png_img_wh.data_size = pngSz;
+    lvgl_png_img_wh.header.cf = LV_IMG_CF_RAW_ALPHA;
+    lvgl_png_img_wh.data = pngData;
+    return lvgl_png_img_wh;
+}
+
+
+lv_obj_t* NuttyDisplay_showPNGWithWHXY(lv_img_dsc_t* lvgl_png_img_wh, lv_obj_t* drawArea, uint8_t x, uint8_t y) {
+    lv_png_init();
+    lv_obj_t *img = lv_img_create(drawArea);
+    lv_img_set_src(img, lvgl_png_img_wh);
+    lv_obj_align(img, LV_ALIGN_TOP_LEFT, x, y);
+    return img;
+}
+
 
 // Please avoid using this in NuttyApp
 // This will wipe the whole screen, including the System Tray

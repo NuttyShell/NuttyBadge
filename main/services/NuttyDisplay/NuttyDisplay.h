@@ -20,6 +20,8 @@ uint16_t NuttyDisplay_getUserAppAreaWidth();
 uint16_t NuttyDisplay_getUserAppAreaHeight();
 lv_obj_t* NuttyDisplay_getUserAppArea();
 lv_obj_t* NuttyDisplay_getSystemTrayArea();
+lv_obj_t* NuttyDisplay_showPNGWithWHXY(lv_img_dsc_t* lvgl_png_img_wh, lv_obj_t* drawArea, uint8_t x, uint8_t y);
+lv_img_dsc_t NuttyDisplay_getPNGDsc(uint8_t *pngData, size_t pngSz);
 void NuttyDisplay_clearUserAppArea();
 void NuttyDisplay_setLCDBacklight(uint8_t percentage);
 void NuttyDisplay_showPNG(uint8_t *pngData, size_t pngSz);

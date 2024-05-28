@@ -234,10 +234,6 @@ void app_main(void) {
         }
         
         
-
-
-
-        
         // Heap stuff
         //heap_caps_print_heap_info(MALLOC_CAP_DEFAULT);
 

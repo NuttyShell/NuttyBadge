@@ -126,22 +126,22 @@ static void nutty_main(void) {
         NuttyRGB_SetAllRGBAndDisplay(0, 0, 0);
         for(bulb=0; bulb<RGB_BULBS; bulb++) {
             NuttyRGB_SetRGBAndDisplay(bulb, 0, 0, 0);
-            vTaskDelay(pdMS_TO_TICKS(350));
+            vTaskDelay(pdMS_TO_TICKS(150));
             NuttyDisplay_lockLVGL();
             lv_label_set_text_fmt(lblTestItem, "Item: RGB[%d] - Red", bulb);
             NuttyDisplay_unlockLVGL();
             NuttyRGB_SetRGBAndDisplay(bulb, 255, 0, 0);
-            vTaskDelay(pdMS_TO_TICKS(350));
+            vTaskDelay(pdMS_TO_TICKS(150));
             NuttyDisplay_lockLVGL();
             lv_label_set_text_fmt(lblTestItem, "Item: RGB[%d] - Green", bulb);
             NuttyDisplay_unlockLVGL();
             NuttyRGB_SetRGBAndDisplay(bulb, 0, 255, 0);
-            vTaskDelay(pdMS_TO_TICKS(350));
+            vTaskDelay(pdMS_TO_TICKS(150));
             NuttyDisplay_lockLVGL();
             lv_label_set_text_fmt(lblTestItem, "Item: RGB[%d] - Blue", bulb);
             NuttyDisplay_unlockLVGL();
             NuttyRGB_SetRGBAndDisplay(bulb, 0, 0, 255);
-            vTaskDelay(pdMS_TO_TICKS(350));
+            vTaskDelay(pdMS_TO_TICKS(150));
         }
         NuttyRGB_SetAllRGBAndDisplay(0, 0, 0);
         NuttyDisplay_lockLVGL();
@@ -152,12 +152,12 @@ static void nutty_main(void) {
 
         NuttyRGBAnimationSequence rgbSeq[6];
         memset(rgbSeq, 0x00, sizeof(NuttyRGBAnimationSequence)*6);
-        rgbSeq[0].g[0]=255; rgbSeq[0].b[0]=255; rgbSeq[0].r[0]=0; rgbSeq[0].durationMs=500;
-        rgbSeq[1].g[1]=255; rgbSeq[1].b[1]=255; rgbSeq[1].r[1]=0; rgbSeq[1].durationMs=500;
-        rgbSeq[2].g[2]=255; rgbSeq[2].b[2]=255; rgbSeq[2].r[2]=0; rgbSeq[2].durationMs=500;
-        rgbSeq[3].g[0]=255; rgbSeq[3].b[0]=255; rgbSeq[3].r[0]=255; rgbSeq[3].durationMs=500;
-        rgbSeq[4].g[1]=255; rgbSeq[4].b[1]=255; rgbSeq[4].r[1]=255; rgbSeq[4].durationMs=500;
-        rgbSeq[5].g[2]=255; rgbSeq[5].b[2]=255; rgbSeq[5].r[2]=255; rgbSeq[5].durationMs=500;
+        rgbSeq[0].g[0]=255; rgbSeq[0].b[0]=255; rgbSeq[0].r[0]=0; rgbSeq[0].durationMs=300;
+        rgbSeq[1].g[1]=255; rgbSeq[1].b[1]=255; rgbSeq[1].r[1]=0; rgbSeq[1].durationMs=300;
+        rgbSeq[2].g[2]=255; rgbSeq[2].b[2]=255; rgbSeq[2].r[2]=0; rgbSeq[2].durationMs=300;
+        rgbSeq[3].g[0]=255; rgbSeq[3].b[0]=255; rgbSeq[3].r[0]=255; rgbSeq[3].durationMs=300;
+        rgbSeq[4].g[1]=255; rgbSeq[4].b[1]=255; rgbSeq[4].r[1]=255; rgbSeq[4].durationMs=300;
+        rgbSeq[5].g[2]=255; rgbSeq[5].b[2]=255; rgbSeq[5].r[2]=255; rgbSeq[5].durationMs=300;
         NuttyRGB_SetAnimationSequences(rgbSeq, 6);
         NuttyRGB_StartAnimation();
         vTaskDelay(pdMS_TO_TICKS(3000));
@@ -251,7 +251,7 @@ static void nutty_main(void) {
         if(playFinished) {
             NuttyAudio_PlayBuffer(chipi_48k_start, 634468);
         }
-        NuttyAudio_SetVolume(2);
+        NuttyAudio_SetVolume(16);
         while(!NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_A)) vTaskDelay(pdMS_TO_TICKS(10));
         NuttyAudio_StopPlaying();
         ESP_LOGI(TAG, "Stopped playing audio...");

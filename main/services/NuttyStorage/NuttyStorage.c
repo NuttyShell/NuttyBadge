@@ -46,6 +46,7 @@ static void NuttyStorage_Worker(void* arg) {
     while(true) {
         while(xSemaphoreTake(storage_semaphore, portMAX_DELAY) != pdTRUE);
         if(!sdPersistAndInited) {
+            ESP_LOGI(TAG, "Probing SD: %d", nuttyDriverSDCard.getCardInserted());
             if(nuttyDriverSDCard.getCardInserted() && nuttyDriverSDCard.initSDCard() == ESP_OK) {
                 sdPersistAndInited = true;
                 if(nuttyDriverSDCard.getSDCardSizeMB(&sdSzMb) != ESP_OK) sdSzMb = 0;

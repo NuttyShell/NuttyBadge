@@ -154,9 +154,11 @@ void NuttyInput_clearButtonHoldState(uint16_t btn) {
 // Wait the given button is being pressed and released (non-blocking)
 bool NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(uint16_t btn) {
     if(btnHeldDebounced & btn) {
-        if(!(btnPressedDebounced & btn)) {
-            NuttyInput_clearButtonHoldState(btn);
-            return true;
+        for(uint16_t i=0; i<2048; i++) {
+            if(!(btnPressedDebounced & btn)) {
+                NuttyInput_clearButtonHoldState(btn);
+                return true;
+            }
         }
     }
     return false;

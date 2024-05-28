@@ -12,7 +12,7 @@ static void nutty_main(void) {
     lv_obj_t *drawArea = NuttyDisplay_getUserAppArea();
     NuttyDisplay_lockLVGL();
     lv_obj_t *lbl = lv_label_create(drawArea);
-    lv_label_set_text(lbl, "This app is yet to be implemented...");
+    lv_label_set_text(lbl, "This app is yet to be implemented...\nStay tuned on our GitHub!");
     lv_obj_add_style(lbl, &text_style, LV_PART_MAIN);
     lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 0);
     lv_label_set_long_mode(lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);

@@ -16,10 +16,13 @@ static const uint8_t zeros[1024] = {0};
 
 static void NuttyAudio_Worker(void *pvParameters) {
     size_t bytesWritten=0;
+    vTaskDelay(pdMS_TO_TICKS(20));
     ESP_LOGI(TAG, "Audio Worker starting...");
     if(!playedFirstTime) { // Workaround for pwm_audio_write will return immediately when calling for the first time.
+        ESP_LOGI(TAG, "Work around...");
         playedFirstTime = true;
-        pwm_audio_write(zeros, sizeof(zeros), &bytesWritten, pdMS_TO_TICKS(100));
+        pwm_audio_write(zeros, sizeof(zeros), &bytesWritten, pdMS_TO_TICKS(50));
+        pwm_audio_write(zeros, sizeof(zeros), &bytesWritten, pdMS_TO_TICKS(50));
     }
     while(true) {
         if(playHz == 0 && playBuf != NULL && playBufLoc != playBufSz) {

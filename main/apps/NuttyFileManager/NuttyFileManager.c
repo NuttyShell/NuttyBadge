@@ -7,8 +7,36 @@ static void lvgl_on_click_set_path(lv_event_t * event) {
     *((char **)event->user_data) = appName;
 }
 
-static void generate_file_menu(char *filePath) {
+static void generate_file_menu(char *path) {
     char *selectedFileOrDir = NULL;
+
+    DIR *dir = opendir(path);
+    if(dir == NULL) {
+        ESP_LOGE(TAG, "%s is NULL.", path);
+        path[0] = 0x00; // Error when oprning path
+        return;
+    }
+
+    /*char entrypath[256];
+    const size_t absPath_len = strlen(path);
+    strlcpy(entrypath, path, sizeof(entrypath));
+
+    struct dirent *entry;
+    struct stat entry_stat;
+    const char *entrytype;
+    char entrysize[16];
+    while ((entry = readdir(dir)) != NULL) {
+        entrytype = (entry->d_type == DT_DIR ? "directory" : "file");
+
+        strlcpy(entrypath + absPath_len, entry->d_name, sizeof(entrypath) - absPath_len);
+        if (stat(entrypath, &entry_stat) == -1) {
+            ESP_LOGE(TAG, "Failed to stat %s : %s", entrytype, entry->d_name);
+            continue;
+        }
+        sprintf(entrysize, "%ld", entry_stat.st_size);
+        ESP_LOGI(TAG, "Found %s : %s (%s bytes)", entrytype, entry->d_name, entrysize);
+    }*/
+
 
     NuttyInputLVGLInputMapping mapping = {
         .UP=LV_KEY_PREV,
@@ -45,6 +73,10 @@ static void generate_file_menu(char *filePath) {
     lv_menu_set_page(menu, mainPage);
     NuttyDisplay_unlockLVGL();
 
+    while(1) {
+        vTaskDelay(pdTICKS_TO_MS(1000));
+    }
+
     NuttyDisplay_lockLVGL();
     lv_group_remove_all_objs(g);
     lv_group_del(g);
@@ -65,7 +97,7 @@ static void nutty_main(uint8_t argc, void **argv) {
 
 
     
-    
+    generate_file_menu(SDCARD_MOUNT_POINT"/");
 }
 
 NuttyAppDefinition NuttyFileManager = {

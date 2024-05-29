@@ -56,13 +56,12 @@ static void generate_file_menu(char *path, bool ret_when_sel_file) {
     lv_label_set_text(lblCurrentPath, currentPath);
     lv_obj_add_style(lblCurrentPath, &current_path_text_style, LV_PART_MAIN);
     lv_obj_align(lblCurrentPath, LV_ALIGN_TOP_LEFT, 0, 0);
-    lv_label_set_long_mode(lblCurrentPath, LV_LABEL_LONG_SCROLL);
+    lv_label_set_long_mode(lblCurrentPath, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_anim_speed(lblCurrentPath, 4, LV_PART_MAIN);
-    lv_obj_set_width(lblCurrentPath, 128);
-    lv_obj_set_size(lblCurrentPath, lv_obj_get_width(drawArea), 8);
+    lv_obj_set_size(lblCurrentPath, lv_obj_get_width(drawArea), 10);
     
-    lv_obj_set_size(menu, lv_obj_get_width(drawArea), lv_obj_get_height(drawArea) - 8);
-    lv_obj_align(menu, LV_ALIGN_CENTER, 0, 8);
+    lv_obj_set_size(menu, lv_obj_get_width(drawArea), lv_obj_get_height(drawArea) - 10);
+    lv_obj_align(menu, LV_ALIGN_BOTTOM_MID, 0, 0);
 
     lv_obj_t *mainPage = lv_menu_page_create(menu, NULL);
     lv_obj_t *cont, *label;
@@ -123,7 +122,7 @@ static void generate_file_menu(char *path, bool ret_when_sel_file) {
     NuttyDisplay_clearUserAppArea();
     
     ESP_LOGI(TAG, "Selected: %s\n", path);
-    if(ret_when_sel_file) return;
+    if(!isDir && ret_when_sel_file) return;
     generate_file_menu(path, ret_when_sel_file);
 }
 

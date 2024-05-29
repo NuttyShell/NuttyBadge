@@ -193,11 +193,35 @@ static void IRDBFromSD() {
         NuttySystemMonitor_setSystemTrayTempText("!Please select a file!", 3);
         char *IRDBFilePath = malloc(1024);
         assert(IRDBFilePath != NULL);
+        memset(IRDBFilePath, 0x00, 1024);
+        strcat(IRDBFilePath, SDCARD_MOUNT_POINT"/");
+        void *arg_list[2];
+        arg_list[0] = xTaskGetCurrentTaskHandle();
+        arg_list[1] = IRDBFilePath;
+        NuttyApps_launchParamedAppByName("File Manager", 2, arg_list);
 
-        NuttyApps_launchParamedAppByName("File Manager", 0, NULL);
-        
+        xTaskNotifyWait(0x00, ULONG_MAX, NULL, portMAX_DELAY);
+        ESP_LOGI(TAG, "Selection Completed: %s", IRDBFilePath);
+
+        lv_style_t text_style;
+        lv_style_init(&text_style);
+        lv_style_set_text_font(&text_style, &lv_font_montserrat_10);
+        lv_obj_t *drawArea = NuttyDisplay_getUserAppArea();
+        NuttyDisplay_lockLVGL();
+        lv_obj_t *lbl = lv_label_create(drawArea);
+        lv_label_set_text(lbl, "This app is yet to be implemented...\nStay tuned on our GitHub!");
+        lv_obj_add_style(lbl, &text_style, LV_PART_MAIN);
+        lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 0);
+        lv_label_set_long_mode(lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
+        lv_obj_set_style_anim_speed(lbl, 4, LV_PART_MAIN);
+        lv_obj_set_width(lbl, 150);
+        NuttyDisplay_unlockLVGL();
+
+        // Not using any LVGL input device here, as we are not using LVGL widgets for navigation
+        NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
         while(true) {
-            vTaskDelay(pdMS_TO_TICKS(20));
+            if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_ALL)) break;
+            vTaskDelay(pdMS_TO_TICKS(10));
         }
         free(IRDBFilePath);
     }
@@ -214,6 +238,32 @@ static void IRDBFromSD() {
 
 static void NewRemoteToSD() {
     ESP_LOGI(TAG, "Running: %s", menuChoices[2]);
+
+    lv_style_t text_style;
+    lv_style_init(&text_style);
+    lv_style_set_text_font(&text_style, &lv_font_montserrat_10);
+    lv_obj_t *drawArea = NuttyDisplay_getUserAppArea();
+    NuttyDisplay_lockLVGL();
+    lv_obj_t *lbl = lv_label_create(drawArea);
+    lv_label_set_text(lbl, "This app is yet to be implemented...\nStay tuned on our GitHub!");
+    lv_obj_add_style(lbl, &text_style, LV_PART_MAIN);
+    lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 0);
+    lv_label_set_long_mode(lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_obj_set_style_anim_speed(lbl, 4, LV_PART_MAIN);
+    lv_obj_set_width(lbl, 150);
+    NuttyDisplay_unlockLVGL();
+
+    // Not using any LVGL input device here, as we are not using LVGL widgets for navigation
+    NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
+    while(true) {
+        if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_ALL)) break;
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+
+    // Cleanup
+    NuttyDisplay_clearUserAppArea();
+    ESP_LOGI(TAG, "Ending: %s", menuChoices[2]);
+    vTaskDelay(pdMS_TO_TICKS(1000));
 }
 
 static void lvgl_menu_on_click_event_handler(lv_event_t * event) {

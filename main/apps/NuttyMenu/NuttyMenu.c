@@ -87,5 +87,5 @@ static void nutty_main(void) {
 NuttyAppDefinition NuttyMenu = {
     .appName = "Main Menu",
     .appMainEntry = nutty_main,
-    .appHidden = false // Not showing in main menu
+    .appHidden = true // Not showing in main menu
 };

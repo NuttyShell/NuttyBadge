@@ -37,19 +37,20 @@
 #include "apps/NuttyStopwatch/NuttyStopwatch.h"
 #include "apps/NuttyFileManager/NuttyFileManager.h"
 #include "apps/NuttySettings/NuttySettings.h"
+#include "apps/NuttyShowImage/NuttyShowImage.h"
 #include "apps/NuttyAbout/NuttyAbout.h"
 
 static const char* TAG = "NuttyOS";
 
 
-extern uint8_t ussr_start[] asm("_binary_ussr_bin_start");
+/*extern uint8_t ussr_start[] asm("_binary_ussr_bin_start");
 extern uint8_t ussr_end[]   asm("_binary_ussr_bin_end");
 extern uint8_t ussr_8k_start[] asm("_binary_ussr_8k_bin_start");
 extern uint8_t ussr_8k_end[]   asm("_binary_ussr_8k_bin_end");
 extern uint8_t ussr_48k_start[] asm("_binary_ussr_48k_bin_start");
 extern uint8_t ussr_48k_end[]   asm("_binary_ussr_48k_bin_end");
 extern uint8_t ussr_96k_start[] asm("_binary_ussr_96k_bin_start");
-extern uint8_t ussr_96k_end[]   asm("_binary_ussr_96k_bin_end");
+extern uint8_t ussr_96k_end[]   asm("_binary_ussr_96k_bin_end");*/
 
 
 extern const uint8_t boot_icon_start[] asm("_binary_boot_icon_png_start");
@@ -145,9 +146,12 @@ void app_main(void) {
     NuttyApps_registerApp(NuttyStopwatch);
     NuttyApps_registerParamedApp(NuttyFileManager);
     NuttyApps_registerApp(NuttySettings);
+    NuttyApps_registerApp(NuttyShowImage);
     NuttyApps_registerApp(NuttyAbout);
     NuttyApps_printApps();
     NuttyApps_launchAppByIndex(0);
+
+
 
     return;
     while(true) {
@@ -186,7 +190,7 @@ void app_main(void) {
                 NuttyAudio_PlayTone(1047, 10);NuttyAudio_FinishedPlayed(&_played);
             }else{
                 ESP_LOGI(TAG, "USSR");
-                NuttyAudio_PlayBuffer(ussr_48k_start, 1160260);
+                //NuttyAudio_PlayBuffer(ussr_48k_start, 1160260);
             }
             x++;
         }

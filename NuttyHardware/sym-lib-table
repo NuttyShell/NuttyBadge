@@ -1,0 +1,6 @@
+(sym_lib_table
+  (lib (name "ESP32S3_Module")(type "KiCad")(uri "${KIPRJMOD}/custom_symbols/ESP32S3_Dev_Board.kicad_sym")(options "")(descr ""))
+  (lib (name "LCD_Module")(type "KiCad")(uri "${KIPRJMOD}/custom_symbols/12864_LCD_Display.kicad_sym")(options "")(descr ""))
+  (lib (name "MicroSD_Slot")(type "KiCad")(uri "${KIPRJMOD}/custom_symbols/MicroSD_Slot.kicad_sym")(options "")(descr ""))
+  (lib (name "ESP+3V3")(type "KiCad")(uri "${KIPRJMOD}/custom_symbols/ESP+3V3.kicad_sym")(options "")(descr ""))
+)

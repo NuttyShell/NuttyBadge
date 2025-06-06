@@ -1,0 +1,42 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<dfxml xmloutputversion='1.0'>
+  <metadata 
+  xmlns='http://www.forensicswiki.org/wiki/Category:Digital_Forensics_XML' 
+  xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' 
+  xmlns:dc='http://purl.org/dc/elements/1.1/'>
+    <dc:type>Carve Report</dc:type>
+  </metadata>
+  <creator>
+    <package>PhotoRec</package>
+    <version>7.0</version>
+    <build_environment>
+      <compiler>GCC 7.2</compiler>
+      <library name='libext2fs' version='1.44.1'/>
+      <library name='libewf' version='none'/>
+      <library name='libjpeg' version='libjpeg-turbo-1.5.2'/>
+      <library name='libntfs' version='libntfs-3g'/>
+    </build_environment>
+    <execution_environment>
+      <os_sysname>Linux</os_sysname>
+      <os_release>5.4.0-150-generic</os_release>
+      <os_version>#167~18.04.1-Ubuntu SMP Wed May 24 00:51:42 UTC 2023</os_version>
+      <host>hopkinskong-dell-nb</host>
+      <arch>x86_64</arch>
+      <uid>0</uid>
+      <start_time>2024-04-16T16:25:53+0800</start_time>
+    </execution_environment>
+  </creator>
+  <source>
+    <image_filename>/dev/sda</image_filename>
+    <sectorsize>512</sectorsize>
+    <device_model>Generic STORAGE DEVICE</device_model>
+    <image_size>3965190144</image_size>
+    <volume>
+      <byte_runs>
+        <byte_run offset='0' img_offset='0' len='3965190144'/>
+      </byte_runs>
+    </volume>
+  </source>
+  <configuration>
+  </configuration>
+</dfxml>

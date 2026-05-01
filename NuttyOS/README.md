@@ -3,9 +3,15 @@
 This is the NuttyOS, a custom designed OS based on ESP-IDF (which is based on FreeRTOS). For ESP-IDF Docs, please read its [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/index.html)
 
 ## Basic Setup
+### Bare Metal Setup
 You will need to install ESP-IDF before building this project. You can find guide to install ESP-IDF with Visual Studio Code [here](https://github.com/espressif/vscode-esp-idf-extension/blob/master/docs/tutorial/install.md).
 
 After installing ESP-IDF, you can build the project within the VS Code, or just run `idf.py build`.
+
+### Docker/Podman Setup
+Alternatively, if you have Docker Compose or Podman Compose installed, you can simply run `docker compose run nuttyidf` to use the pre-built ESP-IDF image from Espressif. This will put you in the ESP-IDF terminal.
+
+You could also run `docker compose run nuttyidf idf.py build` to directly build the project without entering the terminal.
 
 ## Hardware Information
 Hardware: ESP32-S3

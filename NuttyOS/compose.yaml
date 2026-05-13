@@ -1,6 +1,6 @@
 services:
   nuttyidf:
-    image: espressif/idf:v5.2.2
+    image: espressif/idf:v5.2.6
     container_name: nuttyidf
     volumes:
       - ${PWD}:/project

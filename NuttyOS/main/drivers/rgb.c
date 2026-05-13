@@ -172,16 +172,17 @@ err:
     return ret;
 }
 
-static void rgb_set_pixel_rgb_without_display(uint8_t pixel, uint8_t r, uint8_t g, uint8_t b) {
+static esp_err_t rgb_set_pixel_rgb_without_display(uint8_t pixel, uint8_t r, uint8_t g, uint8_t b) {
     rgb_pixels[pixel * 3 + 0] = g >> RGB_SHIFT_BITS;
     rgb_pixels[pixel * 3 + 1] = r >> RGB_SHIFT_BITS;
     rgb_pixels[pixel * 3 + 2] = b >> RGB_SHIFT_BITS;
+    return ESP_OK;
 }
 
-static void rgb_set_pixel_hsv_without_display(uint8_t pixel, uint8_t h, uint8_t s, uint8_t v) {
+static esp_err_t rgb_set_pixel_hsv_without_display(uint8_t pixel, uint8_t h, uint8_t s, uint8_t v) {
     uint32_t r, g, b;
     rgb_hsv2rgb(h, s, v, &r, &g, &b);
-    rgb_set_pixel_rgb_without_display(pixel, r, g, b);
+    return rgb_set_pixel_rgb_without_display(pixel, r, g, b);
 }
 
 static esp_err_t rgb_display_now() {

@@ -278,7 +278,7 @@ static void nutty_main(void) {
             lv_style_set_line_width(&line_style, i);
             lv_obj_add_style(line, &line_style, LV_PART_MAIN);
             NuttyDisplay_unlockLVGL();
-            vTaskDelay(pdMS_TO_TICKS(100));
+            vTaskDelay(pdMS_TO_TICKS(40));
         }
         while(!NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_A)) vTaskDelay(pdMS_TO_TICKS(10));
 

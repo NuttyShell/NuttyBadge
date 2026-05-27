@@ -24,6 +24,17 @@ static lv_obj_t *sysTrayArea = NULL;
 // Inform the LVGL Library to do work
 static void NuttyDisplay_Worker(void* arg) {
     uint8_t lcdPage;
+
+    uint8_t bit_transpose_lut[256];
+    for (uint16_t i = 0; i < 256; i++) {
+        uint8_t x = i;
+        uint8_t r = 0;
+        for (int b = 0; b < 8; b++) {
+            r |= ((x >> b) & 1) << (7 - b);
+        }
+        bit_transpose_lut[i] = r;
+    }
+
     while(true) {
         if(xEventGroupGetBits(lcdUpdateFlag) == BIT0) {
             //ESP_LOGE(TAG, "LCD NEEDS REDRAW...");
@@ -47,10 +58,10 @@ static void NuttyDisplay_Worker(void* arg) {
             xEventGroupClearBits(lcdUpdateFlag, LCD_UPDATED_BIT);
         }
         if (xSemaphoreTake(lvglLock, portMAX_DELAY) == pdTRUE) {
-            lv_timer_handler_run_in_period(5);
+            lv_timer_handler_run_in_period(10);
             xSemaphoreGive(lvglLock);
        }
-       vTaskDelay(pdMS_TO_TICKS(5));
+       vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
@@ -128,6 +139,17 @@ void NuttyDisplay_showPNG(uint8_t *pngData, size_t pngSz) {
     NuttyDisplay_unlockLVGL();
 }
 
+void NuttyDisplay_showGIF(uint8_t *gifData, size_t gifSz) {
+    // TODO: Seems not working.
+    printf("GIF Header: %.6s\n", gifData);  // Should print "GIF89a" or "GIF87a"
+    NuttyDisplay_lockLVGL();
+    lv_obj_t *img = lv_gif_create(lv_scr_act());
+    lv_gif_set_src(img, gifData);
+    lv_obj_set_size(img, 128, 64);
+    lv_obj_align(img, LV_ALIGN_TOP_LEFT, 0, 0);
+    printf("img size: %d x %d\n", lv_obj_get_width(img), lv_obj_get_height(img));
+    NuttyDisplay_unlockLVGL();
+}
 
 lv_img_dsc_t NuttyDisplay_getPNGDsc(uint8_t *pngData, size_t pngSz){
     lv_img_dsc_t lvgl_png_img_wh;
@@ -188,14 +210,14 @@ lv_obj_t* NuttyDisplay_getUserAppArea() {
     return userAppArea;
 }
 
-lv_obj_t* NuttyDisplay_getSystemTrayArea() {
-    NuttyDisplay_lockLVGL();
+lv_obj_t* NuttyDisplay_getSystemTrayArea(bool lock) {
+    if(lock) NuttyDisplay_lockLVGL();
     if(sysTrayArea == NULL) { 
         sysTrayArea = lv_obj_create(lv_scr_act());
         lv_obj_set_size(sysTrayArea, NuttyDisplay_getSystemTrayAreaWidth(), NuttyDisplay_getSystemTrayAreaHeight());
         //lv_obj_set_pos(sysTrayArea, 0, 0);
     }
-    NuttyDisplay_unlockLVGL();
+    if(lock) NuttyDisplay_unlockLVGL();
     return sysTrayArea;
 }
 

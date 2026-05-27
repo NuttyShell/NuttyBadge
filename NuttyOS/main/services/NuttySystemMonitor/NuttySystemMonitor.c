@@ -9,7 +9,7 @@ static uint8_t NuttySystemMonitor_Status=0x00; // 000000 {VBUS} {BATT_LOW}
 static SemaphoreHandle_t systemtray_semaphore;
 static bool showSystemTray = true;
 static char *systemTrayTempText = NULL;
-static uint8_t systemTrayTempTextDuration = 0;
+static uint8_t systemTrayTempTextDuration = 0; // per 100MS (delay for the worker task)
 
 int NuttySystemMonitor_getBatteryVoltage() {
     int v=0;
@@ -46,10 +46,16 @@ void NuttySystemMonitor_showSystemTray() {
 }
 
 
-void NuttySystemMonitor_setSystemTrayTempText(char *text, uint8_t durationSecond) {
+void NuttySystemMonitor_setSystemTrayTempText(char *text, uint8_t duration100MS) {
     while(xSemaphoreTake(systemtray_semaphore, portMAX_DELAY) != pdTRUE);
-    systemTrayTempText = text;
-    systemTrayTempTextDuration = durationSecond;
+    if(systemTrayTempText != NULL) { // Setting the text while not free'ed
+        free(systemTrayTempText);
+        systemTrayTempText=NULL;
+    }
+    systemTrayTempText = malloc(sizeof(char) * strlen(text) + 1);
+    memset(systemTrayTempText, 0x00, sizeof(char) * strlen(text) + 1);
+    strcpy(systemTrayTempText, text);
+    systemTrayTempTextDuration = duration100MS;
     xSemaphoreGive(systemtray_semaphore);
 }
 
@@ -78,56 +84,62 @@ static void NuttySystemMonitor_Worker(void* arg) {
     lv_style_t system_tray_style;
     lv_style_init(&system_tray_style);
     lv_style_set_text_font(&system_tray_style, &cg_pixel_4x5_mono);
+    uint8_t systemInfoUpdateTick=0;
 
     while(true) {
-        // Read IOE for VBUS Detect
-        nuttyDriverIOE.lockIOE();
-        nuttyDriverIOE.readIOE(&ioeReadout);
-        nuttyDriverIOE.releaseIOE();
+        systemInfoUpdateTick++;
+        if(systemInfoUpdateTick % 10 == 0) { // Do this every 1s (10 * 100mS = 1s)
+            systemInfoUpdateTick=0;
+            // Read IOE for VBUS Detect
+            nuttyDriverIOE.lockIOE();
+            nuttyDriverIOE.readIOE(&ioeReadout);
+            nuttyDriverIOE.releaseIOE();
 
-        // Read ADC 1+5times for battery voltage
-        totalVolt = 0;
-        nuttyPeripherals.readADC(&adc_raw, &batt_volt); // Discard first result
-        for(i=0; i<5; i++) {
-            nuttyPeripherals.readADC(&adc_raw, &batt_volt);
-            totalVolt += (batt_volt + batt_volt); // *2 for voltage divider
+            // Read ADC 1+5times for battery voltage
+            totalVolt = 0;
+            nuttyPeripherals.readADC(&adc_raw, &batt_volt); // Discard first result
+            for(i=0; i<5; i++) {
+                nuttyPeripherals.readADC(&adc_raw, &batt_volt);
+                totalVolt += (batt_volt + batt_volt); // *2 for voltage divider
+            }
+            totalVolt /= 5;
+            
+            // Update global values
+            while(xSemaphoreTake(sysmon_semaphore, (TickType_t)10) != pdTRUE);
+            NuttySystemMonitor_BatteryVoltage = totalVolt;
+            if(nuttyDriverSDCard.isSDCardMounted()) {
+                NuttySystemMonitor_Status |= 0b00001000;
+            }else{
+                NuttySystemMonitor_Status &= 0b11110111;
+            }
+            if(nuttyDriverSDCard.getCardInserted()) {
+                NuttySystemMonitor_Status |= 0b00000100;
+            }else{
+                NuttySystemMonitor_Status &= 0b11111011;
+            }
+            if(ioeReadout & 0x40) {
+                NuttySystemMonitor_Status &= 0b11111101;
+            }else{
+                NuttySystemMonitor_Status |= 0b00000010;
+            }
+            if(totalVolt > NUTTYSYSTEMMONITOR_LOW_BATTERY_THRESHOLD_MV) {
+                NuttySystemMonitor_Status &= 0b11111110;
+            }else{
+                NuttySystemMonitor_Status |= 0b00000001;
+            }
+            xSemaphoreGive(sysmon_semaphore);
         }
-        totalVolt /= 5;
-        
-        // Update global values
-        while(xSemaphoreTake(sysmon_semaphore, (TickType_t)10) != pdTRUE);
-        NuttySystemMonitor_BatteryVoltage = totalVolt;
-        if(nuttyDriverSDCard.isSDCardMounted()) {
-            NuttySystemMonitor_Status |= 0b00001000;
-        }else{
-            NuttySystemMonitor_Status &= 0b11110111;
-        }
-        if(nuttyDriverSDCard.getCardInserted()) {
-            NuttySystemMonitor_Status |= 0b00000100;
-        }else{
-            NuttySystemMonitor_Status &= 0b11111011;
-        }
-        if(ioeReadout & 0x40) {
-            NuttySystemMonitor_Status &= 0b11111101;
-        }else{
-            NuttySystemMonitor_Status |= 0b00000010;
-        }
-        if(totalVolt > NUTTYSYSTEMMONITOR_LOW_BATTERY_THRESHOLD_MV) {
-            NuttySystemMonitor_Status &= 0b11111110;
-        }else{
-            NuttySystemMonitor_Status |= 0b00000001;
-        }
-        xSemaphoreGive(sysmon_semaphore);
 
         // Draw System Info in Tray Area of LCD
         while(xSemaphoreTake(systemtray_semaphore, portMAX_DELAY) != pdTRUE);
         NuttyDisplay_clearSystemTrayArea();
         if(showSystemTray) {
-            if(systemTrayTempTextDuration == 0 || systemTrayTempText == NULL) {
+            if(systemTrayTempTextDuration <= 0 || systemTrayTempText == NULL) {
+                if(systemTrayTempText != NULL) free(systemTrayTempText);
                 systemTrayTempTextDuration = 0;
                 systemTrayTempText = NULL;
-                lv_obj_t *tray = NuttyDisplay_getSystemTrayArea();
                 NuttyDisplay_lockLVGL();
+                lv_obj_t *tray = NuttyDisplay_getSystemTrayArea(false);
                 lv_obj_t *lbl = lv_label_create(tray);
                 lv_obj_add_style(lbl, &system_tray_style, LV_PART_MAIN);
                 //lv_obj_set_size(lbl, lv_obj_get_width(tray), lv_obj_get_height(tray));
@@ -139,8 +151,8 @@ static void NuttySystemMonitor_Worker(void* arg) {
                 lv_obj_center(lbl);
                 NuttyDisplay_unlockLVGL();
             }else{
-                lv_obj_t *tray = NuttyDisplay_getSystemTrayArea();
                 NuttyDisplay_lockLVGL();
+                lv_obj_t *tray = NuttyDisplay_getSystemTrayArea(false);
                 lv_obj_t *lbl = lv_label_create(tray);
                 lv_obj_add_style(lbl, &system_tray_style, LV_PART_MAIN);
                 lv_label_set_text(lbl, systemTrayTempText);
@@ -151,7 +163,7 @@ static void NuttySystemMonitor_Worker(void* arg) {
         }
         xSemaphoreGive(systemtray_semaphore);
 
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
     
     

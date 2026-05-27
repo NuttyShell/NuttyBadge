@@ -17,6 +17,6 @@ bool NuttySystemMonitor_isLowBattery();
 bool NuttySystemMonitor_isVBUSConnected();
 void NuttySystemMonitor_hideSystemTray();
 void NuttySystemMonitor_showSystemTray();
-void NuttySystemMonitor_setSystemTrayTempText(char *text, uint8_t durationSecond);
+void NuttySystemMonitor_setSystemTrayTempText(char *text, uint8_t duration100MS);
 
 #endif /* _NUTTYSYSTEMMONITOR_H */

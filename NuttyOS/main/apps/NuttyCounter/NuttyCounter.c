@@ -47,7 +47,7 @@ static void nutty_main(void) {
         if(NuttyInput_waitSingleButtonHoldLongNonBlock(NUTTYINPUT_BTN_B)) {
             count = 0;
             lv_label_set_text_fmt(lblCount, "Count: %ld", count);
-            NuttySystemMonitor_setSystemTrayTempText("!!Count Resetted!!", 2);
+            NuttySystemMonitor_setSystemTrayTempText("!!Count Resetted!!", 20);
         }
         vTaskDelay(pdMS_TO_TICKS(10));
     }

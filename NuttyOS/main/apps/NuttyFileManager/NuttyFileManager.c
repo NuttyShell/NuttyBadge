@@ -69,6 +69,19 @@ static void generate_file_menu(char *path, bool ret_when_sel_file) {
     lv_style_init(&text_style);
     lv_style_set_text_font(&text_style, &lv_font_montserrat_10);
 
+    
+    // Back to last DIR
+    if(strlen(path) > strlen(SDCARD_MOUNT_POINT"/")) {
+        cont = lv_menu_cont_create(mainPage);
+        label = lv_label_create(cont);
+        lv_label_set_text(label, "..");
+        lv_obj_add_style(label, &text_style, LV_PART_MAIN);
+        lv_menu_set_load_page_event(menu, cont, NULL);
+        lv_obj_add_event_cb(cont, lvgl_on_click_set_path, LV_EVENT_CLICKED, (void *)&selectedFileOrDir); 
+        lv_obj_set_style_outline_width(cont, 1, LV_STATE_FOCUS_KEY);
+        lv_group_add_obj(g, cont);
+    }
+
     char lblEntry[300];
     while ((entry = readdir(dir)) != NULL) {
         entrytype = (entry->d_type == DT_DIR ? "DIR" : "FIL");
@@ -78,12 +91,38 @@ static void generate_file_menu(char *path, bool ret_when_sel_file) {
             ESP_LOGE(TAG, "Failed to stat %s : %s", entrytype, entry->d_name);
             continue;
         }
+        if (strncmp(entrytype, "FIL", 3) == 0 && strncmp(entry->d_name, "._", 2) == 0 && entry_stat.st_size == 4096) {
+            ESP_LOGI(TAG, "Skipping Apple Double file: %s", entry->d_name);
+            continue;
+        }
+        if (strncmp(entrytype, "DIR", 3) == 0 && (
+            strcmp(entry->d_name, ".fseventsd") == 0 ||
+            strncmp(entry->d_name, ".Spotlight-V100", 15) == 0 ||
+            strncmp(entry->d_name, "System Volume", 13) == 0)) {
+            ESP_LOGI(TAG, "Skipping macOS system folder: %s", entry->d_name);
+            continue;
+        }
         ESP_LOGI(TAG, "Found %s : %s (%ld bytes)", entrytype, entry->d_name, entry_stat.st_size);
         snprintf(lblEntry, sizeof(lblEntry), "[%s]\t[%ldB]\t%s", entrytype, entry_stat.st_size, entry->d_name);
+
+        if(entry->d_name[0] == '.') continue; // Skip files/folders starting with "." (hidden things, especially Mac OS :))
 
         cont = lv_menu_cont_create(mainPage);
         label = lv_label_create(cont);
         lv_label_set_text(label, lblEntry);
+        lv_obj_add_style(label, &text_style, LV_PART_MAIN);
+        lv_menu_set_load_page_event(menu, cont, NULL);
+        lv_obj_add_event_cb(cont, lvgl_on_click_set_path, LV_EVENT_CLICKED, (void *)&selectedFileOrDir); 
+        lv_obj_set_style_outline_width(cont, 1, LV_STATE_FOCUS_KEY);
+        lv_group_add_obj(g, cont);
+    }
+    closedir(dir);
+
+    // Create exit selection
+    if(strcmp(path, SDCARD_MOUNT_POINT"/") == 0) {
+        cont = lv_menu_cont_create(mainPage);
+        label = lv_label_create(cont);
+        lv_label_set_text(label, "<EXIT>");
         lv_obj_add_style(label, &text_style, LV_PART_MAIN);
         lv_menu_set_load_page_event(menu, cont, NULL);
         lv_obj_add_event_cb(cont, lvgl_on_click_set_path, LV_EVENT_CLICKED, (void *)&selectedFileOrDir); 
@@ -98,6 +137,8 @@ static void generate_file_menu(char *path, bool ret_when_sel_file) {
         vTaskDelay(pdTICKS_TO_MS(10));
     }
 
+    bool isExit = (strcmp(selectedFileOrDir, "<EXIT>") == 0);
+
     char *selectedFileOrDirName = selectedFileOrDir;
     while(*selectedFileOrDirName != '\t') selectedFileOrDirName++;
     selectedFileOrDirName++;
@@ -105,21 +146,36 @@ static void generate_file_menu(char *path, bool ret_when_sel_file) {
     selectedFileOrDirName++;
 
     bool isDir=false;
-    if(selectedFileOrDir[1] == 'D' && selectedFileOrDir[2] == 'I' && selectedFileOrDir[3] == 'R') {
+    if(selectedFileOrDir[1] == 'D' && selectedFileOrDir[2] == 'I' && selectedFileOrDir[3] == 'R') { // [DIR]
         isDir = true;
         strcat(path, selectedFileOrDirName);
         strcat(path, "/");
     }
+
+    if(selectedFileOrDir[0] == '.' && selectedFileOrDir[1] == '.') { // ..
+        isDir = true; // Back to last DIR
+        size_t len = strlen(path);
+        // Walk backward from the end
+        for (int i = len - 2; i >= 0; i--) {
+            if (path[i] == '/') {
+                path[i + 1] = '\0';
+                break;
+            }
+        }
+    }
     
-    if(!isDir && ret_when_sel_file) {
+    if(!isDir && !isExit && ret_when_sel_file) {
         strcat(path, selectedFileOrDirName);
     }
    
     NuttyDisplay_lockLVGL();
     lv_group_remove_all_objs(g);
     lv_group_del(g);
+    lv_group_set_default(NULL); // FIXME: Not sure needed or not
     NuttyDisplay_unlockLVGL();
     NuttyDisplay_clearUserAppArea();
+
+    if(isExit) return;
     
     ESP_LOGI(TAG, "Selected: %s\n", path);
     if(!isDir && ret_when_sel_file) return;
@@ -132,7 +188,14 @@ static void nutty_main(uint8_t argc, void **argv) {
     ESP_LOGI(TAG, "Started with argc=%d", argc);
 
     if(argc == 0) {
-        generate_file_menu(SDCARD_MOUNT_POINT"/", false);
+        printf("File_menu start\n");
+        heap_caps_print_heap_info(MALLOC_CAP_DEFAULT);
+        char tmpFilePath[512] = {0};
+        strcpy(tmpFilePath, SDCARD_MOUNT_POINT"/");
+        generate_file_menu(tmpFilePath, false);
+        printf("File_menu done\n");
+        heap_caps_print_heap_info(MALLOC_CAP_DEFAULT);
+        NuttyApps_launchAppByIndex(0);
     }else if(argc == 2) {
         generate_file_menu((char *)argv[1], true);
         xTaskNotify((TaskHandle_t)argv[0], 0, eNoAction);

@@ -112,7 +112,7 @@ static void stopwatch(){
             update_time(0, lbl_m_s, lbl_ms);
         }
         if(NuttyInput_waitSingleButtonHoldLongNonBlock(NUTTYINPUT_BTN_SELECT)) {
-            NuttySystemMonitor_setSystemTrayTempText("!!Timer Break!!", 2);
+            NuttySystemMonitor_setSystemTrayTempText("!!Timer Break!!", 20);
             break;
         }
     }
@@ -236,7 +236,8 @@ static void countdown(){
             }
         }
         if(NuttyInput_waitSingleButtonHoldLongNonBlock(NUTTYINPUT_BTN_SELECT)) {
-            NuttySystemMonitor_setSystemTrayTempText("!!Timer Break!!", 2);
+            NuttyDisplay_setLCDBacklight(30);
+            NuttySystemMonitor_setSystemTrayTempText("!!Timer Break!!", 20);
             break;
         }
     }

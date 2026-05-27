@@ -11,7 +11,6 @@ static const char *menuChoices[] = {
 
 static _NuttySnakeConfig snake_config = {
     .difficulty = 5,
-    .seed = 20240527,
     .speed = 250
 };
 
@@ -38,11 +37,13 @@ static lv_obj_t *new_label(char *text, lv_obj_t* drawArea, lv_style_t* style, lv
     return lbl;
 }
 
-static void update_difficulty(lv_obj_t* lbl_m_s, uint8_t difficulty){
+static int update_difficulty(lv_obj_t* lbl_m_s, uint8_t difficulty){
+    difficulty = (difficulty + 10) % 10;
     ESP_LOGI(TAG, "Current: %d", difficulty);
     NuttyDisplay_lockLVGL();
     lv_label_set_text_fmt(lbl_m_s, "%d", difficulty % 10);
     NuttyDisplay_unlockLVGL();
+    return difficulty;
 }
 
 
@@ -61,7 +62,7 @@ static void set_difficulty(uint8_t difficulty){
 static void snake_start(){
     ESP_LOGI(TAG, "Game Start with speed: %d with count %d", snake_config.speed, snake_config.speed/5);
     lv_obj_t *drawArea = NuttyDisplay_getUserAppArea();
-    NuttySystemMonitor_setSystemTrayTempText("!!Game Started!!", 2);
+    NuttySystemMonitor_setSystemTrayTempText("!!Game Started!!", 30);
     lv_img_dsc_t background_img = NuttyDisplay_getPNGDsc(background_png, 248);
     lv_img_dsc_t head_img = NuttyDisplay_getPNGDsc(head_png, 68);
     lv_img_dsc_t tail_img = NuttyDisplay_getPNGDsc(tail_png, 75);
@@ -69,9 +70,9 @@ static void snake_start(){
     NuttyDisplay_lockLVGL();
 
     NuttyDisplay_showPNGWithWHXY(&background_img, drawArea, 0, 1);
-    lv_obj_t *head = NuttyDisplay_showPNGWithWHXY(&head_img, drawArea, 62, 31);
     lv_obj_t *tail = NuttyDisplay_showPNGWithWHXY(&tail_img, drawArea, 62, 33);
-    srand(snake_config.seed);
+    lv_obj_t *head = NuttyDisplay_showPNGWithWHXY(&head_img, drawArea, 62, 31);
+    srand(esp_timer_get_time());
     uint8_t foodX = rand() % 61 + 1, foodY = rand() % 27 + 1;
     lv_obj_t *food = NuttyDisplay_showPNGWithWHXY(&head_img, drawArea, foodX * 2, foodY * 2 + 1);
     NuttyDisplay_unlockLVGL();
@@ -100,30 +101,33 @@ static void snake_start(){
                 now->next = malloc(sizeof(_NuttySnakeQueue));
 
                 NuttyDisplay_lockLVGL();
+                uint8_t nextX = nowX, nextY = nowY;
+                if(nextStep == UP){
+                    nextY = nowY - 1;
+                }else if(nextStep == DOWN){
+                    nextY = nowY + 1;
+                }else if(nextStep == LEFT){
+                    nextX = nowX - 1;
+                }else if(nextStep == RIGHT){
+                    nextX = nowX + 1;
+                }
 
+                lv_obj_align(head, LV_ALIGN_TOP_LEFT, nextX * 2, nextY * 2 + 1);
                 now->next->current = NuttyDisplay_showPNGWithWHXY(&tail_img, drawArea, nowX * 2, nowY * 2 + 1);
                 now->next->X = nowX;
                 now->next->Y = nowY;
                 now->next->next = NULL;
-                
-                if(nextStep == UP){
-                    nowY--;
-                }else if(nextStep == DOWN){
-                    nowY++;
-                }else if(nextStep == LEFT){
-                    nowX--;
-                }else if(nextStep == RIGHT){
-                    nowX++;
-                }
-                if(nowX < 1 || nowX > 62 || nowY < 1 || nowY > 27 || snake_map[nowY][nowX]){
+                if(nextX < 1 || nextX > 62 || nextY < 1 || nextY > 27 || snake_map[nextY][nextX]){
                     NuttyDisplay_unlockLVGL();
-                    char lose[28];
+                    char lose[32];
                     memset(lose, 0x00, sizeof(lose));
                     sprintf(lose, "!!You Lose!!Score: %d!!", score);
-                    NuttySystemMonitor_setSystemTrayTempText(lose, 2);
+                    NuttySystemMonitor_setSystemTrayTempText(lose, 20);
                     vTaskDelay(pdMS_TO_TICKS(1000));
                     break;
                 }
+                nowX = nextX;
+                nowY = nextY;
                 snake_map[nowY][nowX] = true;
                 if(nowX == foodX && nowY == foodY){
                     do{
@@ -139,7 +143,6 @@ static void snake_start(){
                     free(tmp);
                 }
 
-                lv_obj_align(head, LV_ALIGN_TOP_LEFT, nowX * 2, nowY * 2 + 1);
                 ESP_LOGI(TAG, "xy %d %d", nowX, nowY);
 
                 NuttyDisplay_unlockLVGL();
@@ -172,13 +175,12 @@ static void snake_start(){
         now = now->next;
         free(tmp);
     }
-    free(now);
     NuttyDisplay_clearUserAppArea();
 }
 
 
 static void option_difficulty(){
-    ESP_LOGI(TAG, "ChangingDifficulty...");
+    ESP_LOGI(TAG, "Changing Difficulty...");
 
     lv_style_t lbl_font_big;
     lv_style_t lbl_font_nano;
@@ -194,12 +196,12 @@ static void option_difficulty(){
     lv_obj_t *lbl_m_s = new_label("1", drawArea, &lbl_font_big, LV_ALIGN_TOP_MID, 0, 10);
     new_label("_", drawArea, &lbl_font_big, LV_ALIGN_TOP_MID, 0, 12);
     new_label("Press A to Confirm", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 33);
-    new_label("Hold B to RESET", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 39);
+    new_label("Hold START to RESET", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 39);
     new_label("Press ARROWS to edit", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 45);
     new_label("Press SELECT back to menu", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 51);
     uint8_t counter = snake_config.difficulty;
     NuttyDisplay_unlockLVGL();
-    update_difficulty(lbl_m_s, counter);
+    counter = update_difficulty(lbl_m_s, counter);
 
     NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
     ESP_LOGI(TAG, "StartedDifficulty");
@@ -208,23 +210,21 @@ static void option_difficulty(){
         if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_A)) {
             set_difficulty(counter);
             update_difficulty(lbl_m_s, counter);
-            NuttySystemMonitor_setSystemTrayTempText("!!Difficulty changed!!", 2);
+            NuttySystemMonitor_setSystemTrayTempText("!!Difficulty changed!!", 20);
         }
-        if(NuttyInput_waitSingleButtonHoldLongNonBlock(NUTTYINPUT_BTN_B)) {
+        if(NuttyInput_waitSingleButtonHoldLongNonBlock(NUTTYINPUT_BTN_START)) {
             counter = 0;
             set_difficulty(counter);
             update_difficulty(lbl_m_s, counter);
-            NuttySystemMonitor_setSystemTrayTempText("!!Difficulty reset!!", 2);
+            NuttySystemMonitor_setSystemTrayTempText("!!Difficulty reset!!", 20);
         }
         if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_UP)) {
-            counter = (counter + 1 + 10) % 10;
-            update_difficulty(lbl_m_s, counter);
+            counter = update_difficulty(lbl_m_s, counter + 1);
         }
         if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_DOWN)) {
-            counter = (counter - 1 + 10) % 10;
-            update_difficulty(lbl_m_s, counter);
+            update_difficulty(lbl_m_s, counter - 1);
         }
-        if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_SELECT)) {
+        if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_SELECT) || NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_B)) {
             break;
         }
     }

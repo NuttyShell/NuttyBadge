@@ -16,7 +16,6 @@
 
 typedef struct _NuttySnakeConfig {
     uint8_t difficulty;
-    uint64_t seed;
     uint16_t speed;
 } _NuttySnakeConfig;
 

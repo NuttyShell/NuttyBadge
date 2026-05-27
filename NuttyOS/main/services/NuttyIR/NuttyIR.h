@@ -12,6 +12,7 @@ esp_err_t NuttyIR_Init();
 esp_err_t NuttyIR_Deinit();
 void NuttyIR_TxNEC(uint16_t _addr, uint16_t _cmd);
 void NuttyIR_TxNECext(uint16_t _addr, uint16_t _cmd);
+void NuttyIR_TxRaw(uint32_t freq, double duty, uint32_t *data, size_t dataCnt);
 void NuttyIR_getLatestRecvResult(uint16_t *_addr, uint16_t *_cmd, uint8_t *_status);
 
 #endif /* _NUTTYIR_H */

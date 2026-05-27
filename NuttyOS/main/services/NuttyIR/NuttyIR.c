@@ -32,6 +32,11 @@ void NuttyIR_TxNECext(uint16_t _addr, uint16_t _cmd) {
     nuttyDriverIR.txIRNECext(_addr, _cmd);
 }
 
+void NuttyIR_TxRaw(uint32_t freq, double duty, uint32_t *data, size_t dataCnt) {
+    ESP_LOGI(TAG, "IRTxRaw: Freq=%lu, Duty=%lf, DataCnt=%u", freq, duty, dataCnt);
+    nuttyDriverIR.txIRRaw(freq, duty, data, dataCnt);
+}
+
 void NuttyIR_getLatestRecvResult(uint16_t *_addr, uint16_t *_cmd, uint8_t *_status) {
     if(irMutex == NULL) return;
     while(xSemaphoreTake(irMutex, portMAX_DELAY) != pdTRUE);

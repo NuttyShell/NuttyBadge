@@ -20,6 +20,8 @@ idf_component_register(
                     SRCS "lvgl_fonts/cg_pixel_4x5_mono.c"
                     SRCS ""
                     SRCS "apps/NuttyMenu/NuttyMenu.c"
+                    SRCS "apps/NuttyMinesweeper/NuttyMinesweeper.c"
+                    SRCS "apps/NuttyShooter/NuttyShooter.c"
                     SRCS "apps/NuttyTest/NuttyTest.c"
                     SRCS "apps/NuttySnake/NuttySnake.c"
                     SRCS "apps/NuttyAudioPlayer/NuttyAudioPlayer.c"

@@ -1,5 +1,10 @@
 #include "ioe.h"
 
+#include "esp_log.h"
+#include "driver/i2c_master.h"
+
+static i2c_master_dev_handle_t ioe_i2c;
+
 // As IOE can be accessed by mutliple tasks
 // We should accquire the complete control for the IOE first
 static SemaphoreHandle_t ioe_semaphore;
@@ -17,18 +22,8 @@ void ioe_release() {
 // So we must preserve its state whenever we write to IOE
 static uint8_t IOEOutputState;
 esp_err_t ioe_write(uint8_t data) {
-	esp_err_t ret;
-	i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-
-	ESP_ERROR_CHECK(i2c_master_start(cmd));
-	ESP_ERROR_CHECK(i2c_master_write_byte(cmd, ((IOE_I2C_ADDRESS) << 1)|I2C_MASTER_WRITE, true)); // Write to I2C Address
-	ESP_ERROR_CHECK(i2c_master_write_byte(cmd, data, true)); // Write Register data
-	ESP_ERROR_CHECK(i2c_master_stop(cmd));
-	ret = i2c_master_cmd_begin(I2C_NUM_0, cmd, 0);
-	i2c_cmd_link_delete(cmd);
-
-	IOEOutputState = data;
-
+	esp_err_t ret = i2c_master_transmit(ioe_i2c, &data, 1, portMAX_DELAY);
+	if(ret == ESP_OK) IOEOutputState = data;
 	return ret;
 }
 
@@ -38,20 +33,11 @@ uint8_t ioe_get_output_state() {
 }
 
 esp_err_t ioe_read(uint8_t *data) {
-	esp_err_t ret;
-	i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-
-	ESP_ERROR_CHECK(i2c_master_start(cmd));
-	ESP_ERROR_CHECK(i2c_master_write_byte(cmd, ((IOE_I2C_ADDRESS) << 1)|I2C_MASTER_READ, true)); // Write to I2C Address
-	ESP_ERROR_CHECK(i2c_master_read_byte(cmd, data, true)); // Write Register data
-	ESP_ERROR_CHECK(i2c_master_stop(cmd));
-	ret = i2c_master_cmd_begin(I2C_NUM_0, cmd, 0);
-	i2c_cmd_link_delete(cmd);
-
-	return ret;
+	return i2c_master_receive(ioe_i2c, data, 1, portMAX_DELAY);
 }
 
 esp_err_t ioe_init(void) {
+	ESP_ERROR_CHECK(nuttyPeripherals.initI2CDevice(&ioe_i2c, IOE_I2C_ADDRESS, IOE_I2C_SPEED_HZ));
     ESP_ERROR_CHECK(ioe_write(0xff));
 	ioe_semaphore = xSemaphoreCreateMutex();
 	assert(ioe_semaphore != NULL);

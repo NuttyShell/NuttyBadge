@@ -2,7 +2,8 @@
 
 
 static rmt_channel_handle_t ir_tx_channel = NULL;
-static rmt_encoder_handle_t ir_encoder = NULL;
+static rmt_encoder_handle_t nec_ir_encoder = NULL;
+static rmt_encoder_handle_t raw_ir_encoder = NULL;
 static rmt_transmit_config_t ir_tx_config = {.loop_count = 0};
 static SemaphoreHandle_t ir_tx_gpio_status_semaphore = NULL;
 static bool ir_tx_gpio_read_mode = false;
@@ -24,6 +25,11 @@ typedef struct {
 } ir_nec_scan_code_t;
 
 typedef struct {
+    uint32_t *data;
+    size_t dataCount;
+} ir_raw_data_t;
+
+typedef struct {
     uint32_t resolution; /*!< Encoder resolution, in Hz */
 } ir_nec_encoder_config_t;
 
@@ -35,6 +41,16 @@ typedef struct {
     rmt_symbol_word_t nec_ending_symbol;  // NEC ending code with RMT representation
     int state;
 } rmt_ir_nec_encoder_t;
+
+typedef struct {
+    rmt_encoder_t base;
+    rmt_encoder_t *copy_encoder;  // use the copy_encoder to encode the leading and ending pulse
+    const uint32_t *durations;
+    size_t duration_count;
+    size_t index;
+    bool mark_phase;
+    int state;
+} rmt_ir_raw_encoder_t;
 
 static size_t rmt_encode_ir_nec(rmt_encoder_t *encoder, rmt_channel_handle_t channel, const void *primary_data, size_t data_size, rmt_encode_state_t *ret_state)
 {
@@ -112,7 +128,8 @@ static esp_err_t rmt_ir_nec_encoder_reset(rmt_encoder_t *encoder)
     return ESP_OK;
 }
 
-static esp_err_t rmt_ir_encoder(const ir_nec_encoder_config_t *config, rmt_encoder_handle_t *ret_encoder) {
+
+static esp_err_t rmt_nec_ir_encoder(const ir_nec_encoder_config_t *config, rmt_encoder_handle_t *ret_encoder) {
     esp_err_t ret = ESP_OK;
     rmt_ir_nec_encoder_t *nec_encoder = NULL;
     ESP_GOTO_ON_FALSE(config && ret_encoder, ESP_ERR_INVALID_ARG, err, TAG, "invalid argument");
@@ -170,12 +187,98 @@ err:
     return ret;
 }
 
+static   rmt_symbol_word_t fake_symbol = {
+        .level0 = 1,
+        .duration0 = 9000ULL * RMT_IRTX_RESOLUTION_HZ / 1000000,
+        .level1 = 0,
+        .duration1 = 4500ULL * RMT_IRTX_RESOLUTION_HZ / 1000000,
+        };
+
+static size_t rmt_encode_ir_raw(rmt_encoder_t *base, rmt_channel_handle_t channel,
+                            const void *primary_data, size_t data_size,
+                            rmt_encode_state_t *ret_state)
+{
+    rmt_ir_raw_encoder_t *raw_encoder = __containerof(base, rmt_ir_raw_encoder_t, base);
+    rmt_encode_state_t session_state = RMT_ENCODING_RESET;
+    rmt_encode_state_t state = RMT_ENCODING_RESET;
+    size_t encoded_symbols = 0;
+    uint32_t *raw_data = (uint32_t *)primary_data;
+    rmt_encoder_handle_t copy_encoder = raw_encoder->copy_encoder;
+
+
+    do {
+        // rmt_symbol_word_t sym = {
+        //     .duration0 = raw_data[raw_encoder->index] * RMT_IRTX_RESOLUTION_HZ/1000000, 
+        //     .level0 = raw_encoder->mark_phase ? 1 : 0,
+        //     .duration1 = 0,
+        //     .level1 = 0
+        // };
+
+        size_t len = copy_encoder->encode(copy_encoder, channel, &fake_symbol, sizeof(rmt_symbol_word_t), &session_state);
+        encoded_symbols += len;
+        printf("sym=%lu[%d] ", raw_data[raw_encoder->index], len);
+
+        raw_encoder->index++;
+        raw_encoder->mark_phase = !raw_encoder->mark_phase;
+    } while(session_state & RMT_ENCODING_COMPLETE && !(session_state & RMT_ENCODING_MEM_FULL) && raw_encoder->index < data_size);
+    printf("\n");
+    if(session_state & RMT_ENCODING_MEM_FULL) {
+        state |= RMT_ENCODING_MEM_FULL;
+        printf("FULL!\n");
+        goto out; // No free space to encode
+    }
+    if(raw_encoder->index >= data_size) {
+        state |= RMT_ENCODING_COMPLETE;
+        goto out;
+    }
+out:
+    *ret_state = state;
+    printf("Encoded count: %d/%d\n", encoded_symbols, data_size);
+    return encoded_symbols*sizeof(rmt_symbol_word_t);
+}
+
+static esp_err_t rmt_del_ir_raw_encoder(rmt_encoder_t *encoder) {
+    rmt_ir_raw_encoder_t *raw_encoder = __containerof(encoder, rmt_ir_raw_encoder_t, base);
+    rmt_del_encoder(raw_encoder->copy_encoder);
+    free(raw_encoder);
+    return ESP_OK;
+}
+
+static esp_err_t rmt_ir_raw_encoder_reset(rmt_encoder_t *encoder)
+{
+    rmt_ir_raw_encoder_t *raw_encoder = __containerof(encoder, rmt_ir_raw_encoder_t, base);
+    rmt_encoder_reset(raw_encoder->copy_encoder);
+    raw_encoder->state = RMT_ENCODING_RESET;
+    return ESP_OK;
+}
+
+static esp_err_t rmt_raw_ir_encoder(ir_raw_data_t *raw_data, rmt_encoder_handle_t *ret_encoder) {
+    esp_err_t ret = ESP_OK;
+    rmt_ir_raw_encoder_t *raw_encoder = NULL;
+    raw_encoder = rmt_alloc_encoder_mem(sizeof(rmt_ir_raw_encoder_t));
+    ESP_GOTO_ON_FALSE(raw_encoder, ESP_ERR_NO_MEM, err, TAG, "no mem for ir raw encoder");
+    raw_encoder->base.encode = rmt_encode_ir_raw;
+    raw_encoder->base.del = rmt_del_ir_raw_encoder;
+    raw_encoder->base.reset = rmt_ir_raw_encoder_reset;
+    rmt_copy_encoder_config_t copy_encoder_config = {};
+    ESP_GOTO_ON_ERROR(rmt_new_copy_encoder(&copy_encoder_config, &raw_encoder->copy_encoder), err, TAG, "create copy encoder failed");
+    raw_encoder->durations = raw_data->data;
+    raw_encoder->duration_count = raw_data->dataCount;
+    raw_encoder->index = 0;
+    raw_encoder->mark_phase = true;
+
+    *ret_encoder = &raw_encoder->base;
+    return ESP_OK;
+err:
+    if (raw_encoder) {
+        if(raw_encoder->copy_encoder) free(raw_encoder->copy_encoder);
+        free(raw_encoder);
+    }
+    return ret;
+}
+
 static esp_err_t ir_tx_init() {
-    rmt_carrier_config_t carrier_cfg = {
-        .duty_cycle = 0.33,
-        .frequency_hz = 38000 // 38KHz
-    };
-    nuttyPeripherals.initRMTTxDevice(&ir_tx_channel, GPIO_IR_TX_SDCD, RMT_IRTX_MEM_BLK_SYMBOLS, RMT_IRTX_RESOLUTION_HZ, &carrier_cfg);
+    nuttyPeripherals.initRMTTxDevice(&ir_tx_channel, GPIO_IR_TX_SDCD, RMT_IRTX_MEM_BLK_SYMBOLS, RMT_IRTX_RESOLUTION_HZ, NULL);
     
     ir_nec_encoder_config_t encoder_config = {
         .resolution = RMT_IRTX_RESOLUTION_HZ,
@@ -184,7 +287,8 @@ static esp_err_t ir_tx_init() {
     if(ir_tx_gpio_status_semaphore == NULL) ir_tx_gpio_status_semaphore = xSemaphoreCreateMutex();
     assert(ir_tx_gpio_status_semaphore != NULL);
     
-    return rmt_ir_encoder(&encoder_config, &ir_encoder);
+    rmt_nec_ir_encoder(&encoder_config, &nec_ir_encoder);
+    return ESP_OK;
 }
 
 static bool ir_rx_recv_done_cb(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *edata, void *user_data) {
@@ -205,6 +309,14 @@ static esp_err_t ir_rx_init() {
 }
 
 static esp_err_t ir_tx_necext(uint16_t address, uint16_t command) {
+    // Set NEC Carrier
+    rmt_carrier_config_t carrier_cfg = {
+        .duty_cycle = 0.33,
+        .frequency_hz = 38000 // 38KHz
+    };
+    ESP_LOGI(TAG, "RMT: Set carrier");
+    nuttyPeripherals.setRMTTxDeviceCarrier(&ir_tx_channel, &carrier_cfg);
+    ESP_LOGI(TAG, "IR Wait...");
     bool needWait = true;
     while(needWait) {
         xSemaphoreTake(ir_tx_gpio_status_semaphore, portMAX_DELAY);
@@ -217,11 +329,40 @@ static esp_err_t ir_tx_necext(uint16_t address, uint16_t command) {
     ESP_ERROR_CHECK(rmt_get_channel_id(ir_tx_channel, &rmt_cid));
     esp_rom_gpio_connect_out_signal(GPIO_IR_TX_SDCD, rmt_periph_signals.groups[0].channels[rmt_cid].tx_sig, false, false);
     ESP_ERROR_CHECK(gpio_set_drive_capability(GPIO_IR_TX_SDCD, GPIO_DRIVE_CAP_3));
-    return rmt_transmit(ir_tx_channel, ir_encoder, &code, sizeof(code), &ir_tx_config);
+    ESP_LOGI(TAG, "RMT: Tx");
+    return rmt_transmit(ir_tx_channel, nec_ir_encoder, &code, sizeof(code), &ir_tx_config);
+    //rmt_tx_wait_all_done(ir_tx_channel, 1);
 }
 
 static esp_err_t ir_tx_nec(uint8_t address, uint8_t command) {
     return ir_tx_necext(((((uint8_t)~address) << 8) | address), ((((uint8_t)~command) << 8) | command));
+}
+
+static esp_err_t ir_tx_raw(uint32_t freq_hz, double duty, uint32_t *data, size_t dataCount) {
+    // Set Raw Carrier
+    rmt_carrier_config_t carrier_cfg = {
+        .duty_cycle = duty,
+        .frequency_hz = freq_hz
+    };
+    nuttyPeripherals.setRMTTxDeviceCarrier(&ir_tx_channel, &carrier_cfg);
+
+    bool needWait = true;
+    while(needWait) {
+        xSemaphoreTake(ir_tx_gpio_status_semaphore, portMAX_DELAY);
+        needWait = ir_tx_gpio_read_mode;
+        xSemaphoreGive(ir_tx_gpio_status_semaphore);
+        vTaskDelay(pdTICKS_TO_MS(1));
+    }
+    ir_raw_data_t raw_data = {.data = data, .dataCount = dataCount};
+    int rmt_cid;
+    ESP_ERROR_CHECK(rmt_get_channel_id(ir_tx_channel, &rmt_cid));
+    esp_rom_gpio_connect_out_signal(GPIO_IR_TX_SDCD, rmt_periph_signals.groups[0].channels[rmt_cid].tx_sig, false, false);
+    ESP_ERROR_CHECK(gpio_set_drive_capability(GPIO_IR_TX_SDCD, GPIO_DRIVE_CAP_3));
+    rmt_raw_ir_encoder(&raw_data, &raw_ir_encoder);
+    rmt_transmit(ir_tx_channel, raw_ir_encoder, data, dataCount, &ir_tx_config);
+    rmt_tx_wait_all_done(ir_tx_channel, -1);
+    raw_ir_encoder->del(raw_ir_encoder);
+    return ESP_OK;
 }
 
 static void ir_tx_wait_finish_and_accquire_line_for_read() {
@@ -364,6 +505,7 @@ NuttyDriverIR nuttyDriverIR = {
     .initIRRx = ir_rx_init,
     .txIRNECext = ir_tx_necext,
     .txIRNEC = ir_tx_nec,
+    .txIRRaw = ir_tx_raw,
     .txIRWaitFinishAndReserveLine = ir_tx_wait_finish_and_accquire_line_for_read,
     .txIRReleaseLine = ir_tx_release_line,
     .waitForIRNECRx = ir_rx_nec_wait

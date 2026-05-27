@@ -26,18 +26,26 @@ static esp_err_t initLEDC() {
     return ESP_OK;
 }
 
+static i2c_master_bus_handle_t i2c_handle;
 static esp_err_t initI2C() {
-    i2c_config_t i2c_conf;
-	i2c_conf.mode = I2C_MODE_MASTER;
-	i2c_conf.sda_io_num = GPIO_I2C_SDA;
-	i2c_conf.sda_pullup_en = GPIO_PULLUP_ENABLE;
-	i2c_conf.scl_io_num = GPIO_I2C_SCL;
-	i2c_conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
-	i2c_conf.master.clk_speed = 100000; // 100KHz
-    i2c_conf.clk_flags = 0;
-	i2c_param_config(I2C_NUM_0, &i2c_conf);
-	i2c_driver_install(I2C_NUM_0, i2c_conf.mode, 0, 0, 0);
-    return ESP_OK;
+    i2c_master_bus_config_t bus_config = {
+        .i2c_port = I2C_NUM_0,
+        .sda_io_num = GPIO_I2C_SDA,
+        .scl_io_num = GPIO_I2C_SCL,
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .glitch_ignore_cnt = 7,
+        .flags.enable_internal_pullup = true
+    };
+    return i2c_new_master_bus(&bus_config, &i2c_handle);
+}
+
+static esp_err_t initI2CDevice(i2c_master_dev_handle_t *dev_handle, uint16_t I2C_ADDRESS, uint32_t I2C_FREQ_HZ) {
+    i2c_device_config_t dev_config = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = I2C_ADDRESS,
+        .scl_speed_hz = I2C_FREQ_HZ
+    };
+    return i2c_master_bus_add_device(i2c_handle, &dev_config, dev_handle);
 }
 
 static esp_err_t initGPIO() {
@@ -194,6 +202,14 @@ static esp_err_t initSDHost() {
 }
 
 static esp_err_t initSDCard(sdmmc_card_t *card) {
+    if(SDHostInited) {
+        sdmmc_host.deinit_p(sdmmc_host.slot);
+        sdmmc_host.deinit();
+        sdmmc_host_deinit_slot(sdmmc_host.slot);
+        sdmmc_host_deinit();
+        SDHostInited=false;
+        initSDHost();
+    }
     return sdmmc_card_init(&sdmmc_host, card);
 }
 
@@ -208,6 +224,10 @@ static esp_err_t initRMTTxDevice(rmt_channel_handle_t *rmt_channel, uint8_t gpio
     ESP_ERROR_CHECK(rmt_new_tx_channel(&tx_ch_cfg, rmt_channel));
     if (carrier_cfg != NULL) rmt_apply_carrier(*rmt_channel, carrier_cfg);
     return rmt_enable(*rmt_channel);
+}
+
+static esp_err_t setRMTTxDeviceCarrier(rmt_channel_handle_t *rmt_channel, rmt_carrier_config_t *carrier_cfg) {
+    return rmt_apply_carrier(*rmt_channel, carrier_cfg);;
 }
 
 static esp_err_t initRMTRxDevice(rmt_channel_handle_t *rmt_channel, uint8_t gpio, size_t mem_blk_syms, uint32_t res_hz, QueueHandle_t *rx_queue, rmt_rx_event_callbacks_t *rx_cb) {
@@ -225,10 +245,12 @@ static esp_err_t initRMTRxDevice(rmt_channel_handle_t *rmt_channel, uint8_t gpio
 NuttyPeripherals nuttyPeripherals = {
     .initLEDC = initLEDC,
     .initI2C = initI2C,
+    .initI2CDevice = initI2CDevice,
     .initGPIO = initGPIO,
     .initGPIOISR = initGPIOISR,
     .initFSPI = initFSPI,
     .initRMTTxDevice = initRMTTxDevice,
+    .setRMTTxDeviceCarrier = setRMTTxDeviceCarrier,
     .initRMTRxDevice = initRMTRxDevice,
     .initFSPIDevice = initFSPIDevice,
     .initADC = initADC,

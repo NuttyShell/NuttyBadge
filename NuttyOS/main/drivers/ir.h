@@ -17,6 +17,7 @@ typedef esp_err_t (*NuttyDriverIRTxInitFunc)();
 typedef esp_err_t (*NuttyDriverIRRxInitFunc)();
 typedef esp_err_t (*NuttyDriverIRTxNECXFunc)(uint16_t address, uint16_t command);
 typedef esp_err_t (*NuttyDriverIRTxNECFunc)(uint8_t address, uint8_t command);
+typedef esp_err_t (*NuttyDriverIRTxRawFunc)(uint32_t freq_hz, double duty, uint32_t *data, size_t dataCount);
 typedef void (*NuttyDriverIRTxWaitFinishAndReserveLineFunc)();
 typedef void (*NuttyDriverIRTxReleaseLineFunc)();
 typedef void (*NuttyDriverIRRxNECWaitFunc)(uint16_t *address, uint16_t *command, uint8_t *status, uint16_t ms_to_wait);
@@ -25,6 +26,7 @@ typedef struct _NuttyDriverIR {
     NuttyDriverIRRxInitFunc initIRRx;
     NuttyDriverIRTxNECXFunc txIRNECext;
     NuttyDriverIRTxNECFunc txIRNEC;
+    NuttyDriverIRTxRawFunc txIRRaw;
     NuttyDriverIRTxWaitFinishAndReserveLineFunc txIRWaitFinishAndReserveLine;
     NuttyDriverIRTxReleaseLineFunc txIRReleaseLine;
     NuttyDriverIRRxNECWaitFunc waitForIRNECRx;

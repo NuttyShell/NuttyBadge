@@ -4,7 +4,7 @@
 #include <esp_err.h>
 #include <esp_check.h>
 #include <string.h>
-#include "driver/i2c.h"
+#include "driver/i2c_master.h"
 #include "driver/ledc.h"
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
@@ -18,23 +18,28 @@
 #include "vfs_fat_internal.h"
 #include "diskio_impl.h"
 #include "diskio_sdmmc.h"
+#include "tinyusb.h"
 
 #include "config.h"
 
 typedef esp_err_t (*NuttyPeripheralsInitFunc)(void);
 typedef esp_err_t (*NuttyPeripheralsInitGPIOISRFunc)(void (*)(void *), void *);
 typedef void (*NuttyPeripheralsReadADCFunc)(int *, int *);
+typedef esp_err_t (*NuttyPeripheralsInitI2CDeviceFunc)(i2c_master_dev_handle_t *, uint16_t, uint32_t);
 typedef esp_err_t (*NuttyPeripheralsInitSPIDeviceFunc)(spi_device_handle_t *, int, uint8_t, int, uint32_t, int, void (*)(spi_transaction_t *));
 typedef esp_err_t (*NuttyPeripheralsInitRMTTxDeviceFunc)(rmt_channel_handle_t *rmt_channel, uint8_t gpio, size_t mem_blk_syms, uint32_t res_hz, rmt_carrier_config_t *);
+typedef esp_err_t (*NuttyPeripheralsSetRMTTxDeviceCarrierFunc)(rmt_channel_handle_t *rmt_channel, rmt_carrier_config_t *);
 typedef esp_err_t (*NuttyPeripheralsInitRMTRxDeviceFunc)(rmt_channel_handle_t *rmt_channel, uint8_t gpio, size_t mem_blk_syms, uint32_t res_hz, QueueHandle_t *rx_queue, rmt_rx_event_callbacks_t *rx_cb);
 typedef esp_err_t (*NuttyPeripheralsInitSDCardFunc)(sdmmc_card_t *card);
 typedef struct _NuttyPeripherals {
     NuttyPeripheralsInitFunc initGPIO;
     NuttyPeripheralsInitFunc initI2C;
+    NuttyPeripheralsInitI2CDeviceFunc initI2CDevice;
     NuttyPeripheralsInitFunc initFSPI;
     NuttyPeripheralsInitSPIDeviceFunc initFSPIDevice;
     NuttyPeripheralsInitFunc initLEDC;
     NuttyPeripheralsInitRMTTxDeviceFunc initRMTTxDevice;
+    NuttyPeripheralsSetRMTTxDeviceCarrierFunc setRMTTxDeviceCarrier;
     NuttyPeripheralsInitRMTRxDeviceFunc initRMTRxDevice;
     NuttyPeripheralsInitGPIOISRFunc initGPIOISR;
     NuttyPeripheralsInitFunc initADC;

@@ -2,6 +2,12 @@
 
 static const char *TAG = "ShowImage";
 
+bool has_extension(const char *filename, const char *ext) {
+    const char *dot = strrchr(filename, '.');  // Find the last '.'
+    if (!dot || dot == filename) return false; // No extension found
+    return strcmp(dot, ext) == 0;
+}
+
 static void nutty_main(void) {
     heap_caps_print_heap_info(MALLOC_CAP_DEFAULT);
 
@@ -58,7 +64,7 @@ static void nutty_main(void) {
         NuttyDisplay_clearUserAppArea();
     }else{
         // Launch File Manager to select IRDB
-        NuttySystemMonitor_setSystemTrayTempText("!Please select a file!", 3);
+        NuttySystemMonitor_setSystemTrayTempText("!Please select a file!", 30);
         char *ImageFilePath = malloc(1024);
         assert(ImageFilePath != NULL);
         memset(ImageFilePath, 0x00, 1024);
@@ -70,35 +76,54 @@ static void nutty_main(void) {
 
         xTaskNotifyWait(0x00, ULONG_MAX, NULL, portMAX_DELAY);
         ESP_LOGI(TAG, "Selection Completed: %s", ImageFilePath);
+        if(strcmp(ImageFilePath, SDCARD_MOUNT_POINT"/") != 0) { // Selected a file from File Manager, not exited directly
+            uint8_t *imgData = NULL;
+            if(has_extension(ImageFilePath, ".png")) {
+                ESP_LOGI(TAG, "Showing PNG");
+                NuttySystemMonitor_hideSystemTray();
+                NuttyDisplay_clearWholeScreen();
+                FILE *imageFile = fopen(ImageFilePath, "rb");
+                assert(imageFile != NULL);
+                fseek(imageFile, 0, SEEK_END); // seek to end of file
+                long imageFileSize = ftell(imageFile); // get current file pointer
+                fseek(imageFile, 0, SEEK_SET); // seek back to beginning of file
+                imgData = (uint8_t *)malloc(imageFileSize);
+                assert(imgData != NULL);
+                fread(imgData, imageFileSize, 1, imageFile);
+                fclose(imageFile);
+                NuttyDisplay_showPNG(imgData, imageFileSize);
+            }else if(has_extension(ImageFilePath, ".gif")) {
+                ESP_LOGI(TAG, "Showing GIF");
+                NuttySystemMonitor_hideSystemTray();
+                NuttyDisplay_clearWholeScreen();
+                FILE *imageFile = fopen(ImageFilePath, "rb");
+                assert(imageFile != NULL);
+                fseek(imageFile, 0, SEEK_END); // seek to end of file
+                long imageFileSize = ftell(imageFile); // get current file pointer
+                fseek(imageFile, 0, SEEK_SET); // seek back to beginning of file
+                imgData = (uint8_t *)malloc(imageFileSize);
+                assert(imgData != NULL);
+                fread(imgData, imageFileSize, 1, imageFile);
+                fclose(imageFile);
+                NuttyDisplay_showGIF(imgData, imageFileSize);
+            }else{
+                NuttySystemMonitor_setSystemTrayTempText("Invalid ext, [START]=exit", 20);
+            }
 
-        NuttySystemMonitor_hideSystemTray();
-        NuttyDisplay_clearWholeScreen();
 
-        FILE *imageFile = fopen(ImageFilePath, "rb");
-        assert(imageFile != NULL);
-        fseek(imageFile, 0, SEEK_END); // seek to end of file
-        long imageFileSize = ftell(imageFile); // get current file pointer
-        fseek(imageFile, 0, SEEK_SET); // seek back to beginning of file
-        uint8_t *pngData = (uint8_t *)malloc(imageFileSize);
-        assert(pngData != NULL);
-        fread(pngData, imageFileSize, 1, imageFile);
-        fclose(imageFile);
-        free(ImageFilePath);
+            // Not using any LVGL input device here, as we are not using LVGL widgets for navigation
+            NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
+            while(true) {
+                if(NuttyInput_waitSingleButtonHoldLongNonBlock(NUTTYINPUT_BTN_START)) break;
+                vTaskDelay(pdMS_TO_TICKS(10));
+            }
 
-
-        NuttyDisplay_showPNG(pngData, imageFileSize);
-
-
-
-        // Not using any LVGL input device here, as we are not using LVGL widgets for navigation
-        NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
-        while(true) {
-            if(NuttyInput_waitSingleButtonHoldLongNonBlock(NUTTYINPUT_BTN_START)) break;
-            vTaskDelay(pdMS_TO_TICKS(10));
+            NuttyDisplay_clearWholeScreen();
+            if(imgData != NULL) free(imgData);
+        }else{
+            NuttySystemMonitor_setSystemTrayTempText("!! No file selected !!", 10);
         }
-
-        NuttyDisplay_clearWholeScreen();
-        free(pngData);
+        free(ImageFilePath);
     }
 
     NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);

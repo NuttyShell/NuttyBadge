@@ -25,3 +25,4 @@ jobs:
         with:
           name: NuttyOS Binary
           path: NuttyOS/build/merged-binary.bin
+          archive: false

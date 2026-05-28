@@ -38,7 +38,7 @@ static const char *PWM_AUDIO_NOT_INITIALIZED  = "PWM AUDIO Uninitialized";
 #ifndef TIMER_BASE_CLK
 #define TIMER_BASE_CLK 80000000
 #endif
-#define TIMER_DIVIDER  16
+#define TIMER_DIVIDER  2
 
 /**
  * Debug Configuration

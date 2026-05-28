@@ -5,6 +5,8 @@
 #include "driver/gpio.h"
 #include "esp_adc/adc_oneshot.h"
 
+
+#define NUTTYBADGE_REVC_OLED 1
 /****
 G0 Strapping Pin (BOOT Mode), [I2C DATA]
 G1 [I2C SCL]
@@ -70,7 +72,11 @@ G45-G48 On-board Camera Port
 #define ADC_MV_ADJUST +2 // Account for ADC Input impedance, Voltage Divider Error, and ADC Atten Error
 
 #define FSPI_HOST SPI2_HOST
+#ifndef NUTTYBADGE_REVC_OLED
 #define LCD_SPEED_HZ (20*1000*1000)
+#else
+#define LCD_SPEED_HZ (10*1000*1000)
+#endif
 #define CC_SPEED_HZ (10*1000*1000)
 
 #define RMT_RGB_MEM_BLK_SYMBOLS 64
@@ -87,9 +93,9 @@ G45-G48 On-board Camera Port
 #define IOE_I2C_ADDRESS 0x20
 #define IOE_I2C_SPEED_HZ 100*1000 // 100KHz
 
-#define BTN_DEBOUNCE_PRESSED_THRESHOLD 5
-#define BTN_DEBOUNCE_NOTPRESSED_THRESHOLD 3
-#define BTN_HOLD_THRESHOLD 190
+#define BTN_DEBOUNCE_PRESSED_THRESHOLD 1
+#define BTN_DEBOUNCE_NOTPRESSED_THRESHOLD 0
+#define BTN_HOLD_THRESHOLD 181
 
 #define NUTTYSYSTEMMONITOR_LOW_BATTERY_THRESHOLD_MV 1900
 #define NUTTYDISPLAY_INVERT_COLOR 1
@@ -101,5 +107,6 @@ G45-G48 On-board Camera Port
 #define SDCARD_MOUNT_POINT "/sdcard"
 
 #define NUTTYOS_VERSION "v0.1a"
+
 
 #endif /* _CONFIG_h */

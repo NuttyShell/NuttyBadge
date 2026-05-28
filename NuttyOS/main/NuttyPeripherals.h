@@ -18,7 +18,6 @@
 #include "vfs_fat_internal.h"
 #include "diskio_impl.h"
 #include "diskio_sdmmc.h"
-#include "tinyusb.h"
 
 #include "config.h"
 

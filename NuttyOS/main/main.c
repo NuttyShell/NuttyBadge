@@ -24,6 +24,8 @@
 #include "services/NuttyApps/NuttyApps.h"
 
 #include "apps/NuttyMenu/NuttyMenu.h"
+#include "apps/NuttyMinesweeper/NuttyMinesweeper.h"
+#include "apps/NuttyShooter/NuttyShooter.h"
 #include "apps/NuttyTest/NuttyTest.h"
 #include "apps/NuttySnake/NuttySnake.h"
 #include "apps/NuttyAudioPlayer/NuttyAudioPlayer.h"
@@ -134,6 +136,8 @@ void app_main(void) {
     // Register NuttyApps
     NuttyApps_registerApp(NuttyMenu);
     NuttyApps_registerApp(NuttyTest);
+    NuttyApps_registerApp(NuttyMinesweeper);
+    NuttyApps_registerApp(NuttyShooter);
     NuttyApps_registerApp(NuttySnake);
     NuttyApps_registerApp(NuttyAudioPlayer);
     NuttyApps_registerApp(NuttyRemote);

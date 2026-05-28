@@ -202,13 +202,23 @@ static esp_err_t initSDHost() {
 }
 
 static esp_err_t initSDCard(sdmmc_card_t *card) {
-    if(SDHostInited) {
-        sdmmc_host.deinit_p(sdmmc_host.slot);
-        sdmmc_host.deinit();
-        sdmmc_host_deinit_slot(sdmmc_host.slot);
-        sdmmc_host_deinit();
-        SDHostInited=false;
-        initSDHost();
+    if (SDHostInited) {
+        // SDHostInited == true guarantees the slot handle is non-NULL (set
+        // only after sdmmc_host_init_slot succeeds), so deinit is safe.
+        // In v6.0.1 SDMMC_HOST_DEFAULT sets SDMMC_HOST_FLAG_DEINIT_ARG,
+        // meaning only deinit_p is valid in the union. sdmmc_host_deinit_slot
+        // already calls sd_host_del_controller internally, so do NOT also
+        // call sdmmc_host_deinit() -- that double-frees the controller.
+        if (sdmmc_host.flags & SDMMC_HOST_FLAG_DEINIT_ARG) {
+            sdmmc_host.deinit_p(sdmmc_host.slot);
+        } else {
+            sdmmc_host.deinit();
+        }
+        SDHostInited = false;
+    }
+    if (SDHostInited == false) {
+        esp_err_t err = initSDHost();
+        if (err != ESP_OK) return err;
     }
     return sdmmc_card_init(&sdmmc_host, card);
 }

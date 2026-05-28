@@ -11,6 +11,7 @@
 #include "driver/rmt_tx.h"
 #include "driver/rmt_rx.h"
 #include "driver/sdmmc_host.h"
+#include "esp_private/sdmmc_common.h"
 #include "sdmmc_cmd.h"
 #include "hal/adc_types.h"
 #include "esp_vfs_fat.h"

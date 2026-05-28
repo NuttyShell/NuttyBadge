@@ -7,11 +7,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/ledc.h"
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+#include "driver/gpio.h"
 #include "driver/gptimer.h"
-#else
-#include "driver/timer.h"
-#endif
 
 #define PWM_AUDIO_VER_MAJOR 1
 #define PWM_AUDIO_VER_MINOR 1

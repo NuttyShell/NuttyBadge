@@ -51,11 +51,18 @@ void lcd_set_page(uint8_t page) {
     lcd_cmd(0xb0 + page, false);
 }
 
+#ifndef NUTTYBADGE_REVC_OLED
 void lcd_set_column(uint8_t column) {
     column += 1;
     lcd_cmd((0x10 | (column >> 4)), false);
     lcd_cmd((0x00 | (column & 0x0f)), false);
 }
+#else
+void lcd_set_column(uint8_t column) {
+    lcd_cmd((0x10 | ((column & 0xf0) >> 4)), false);
+    lcd_cmd((column & 0x0f), false);
+}
+#endif
 
 void lcd_clear() {
     uint8_t page=0, column = 0;
@@ -88,6 +95,7 @@ static void lcd_update_page(uint8_t page, uint8_t *data, size_t datasz) {
     lcd_data(data, datasz);
 }
 
+#ifndef NUTTYBADGE_REVC_OLED
 // LCD arranged (vertically): Page 4,5,6,7,0,1,2,3...
 static void lcd_update_page_seq_order(uint8_t page, uint8_t *data, size_t datasz) {
     uint8_t reordered_page;
@@ -100,6 +108,14 @@ static void lcd_update_page_seq_order(uint8_t page, uint8_t *data, size_t datasz
     lcd_set_column(0);
     lcd_data(data, datasz);
 }
+#else
+// No rearrangement is needed for OLED
+static void lcd_update_page_seq_order(uint8_t page, uint8_t *data, size_t datasz) {
+    lcd_set_page(page);
+    lcd_set_column(0);
+    lcd_data(data, datasz);
+}
+#endif
 
 void lcd_pic(uint8_t *pic, size_t sz) {
     uint8_t *p = pic;
@@ -114,11 +130,22 @@ void lcd_pic(uint8_t *pic, size_t sz) {
     }
 }
 
+#ifndef NUTTYBADGE_REVC_OLED
 void lcd_set_backlight_duty(uint32_t duty) {
     ledc_set_duty(LEDC_LCD_BL_PWM_SPEED, LEDC_LCD_BL_PWM_CHANNEL, duty);
     ledc_update_duty(LEDC_LCD_BL_PWM_SPEED, LEDC_LCD_BL_PWM_CHANNEL);
 }
+#else
+void lcd_set_backlight_duty(uint32_t duty) {
+    // TODO: It seems that OLED version doesn't have brigness control, need more testing...
+    lcd_cmd(0x81, false); // (The Electronic Volume Mode Set)
+    uint8_t _duty = (uint8_t)(duty & 0xFF);
+    lcd_cmd(_duty, false); // (Electronic Volume Register Set) Set OLED brightness
+    ESP_LOGW("OLED DRIVER", "Set OLED Backlight Duty: %d", _duty);
+}
+#endif
 
+#ifndef NUTTYBADGE_REVC_OLED
 esp_err_t lcd_init(void) {
     ESP_ERROR_CHECK(nuttyPeripherals.initFSPIDevice(&lcd_spi, LCD_SPEED_HZ, 0, 7, SPI_DEVICE_NO_DUMMY, GPIO_LCD_CS, lcd_spi_pre_transfer_cb));
     lcd_reset();
@@ -136,7 +163,8 @@ esp_err_t lcd_init(void) {
 	lcd_cmd(0x00, false); // 4x
 	lcd_cmd(0x23, false); // (V5 Voltage Regulator Internal Resistor Ratio Set) resistor ratio = 4 (< Official Use 0x26)
 	lcd_cmd(0x81, false); // (The Electronic Volume Mode Set)
-	lcd_cmd(0x28, false); // (Electronic Volume Register Set) Contrast = 40
+	//lcd_cmd(0x28, false); // (Electronic Volume Register Set) Contrast = 40
+    lcd_cmd(0x2F, false); // (Electronic Volume Register Set) Contrast = 40
 	lcd_cmd(0xac, false); // (Static Indicator OFF)
 	lcd_cmd(0x00, false); // (Static Indicator Register Set) OFF
 	lcd_cmd(0xa6, false); // disable inverse
@@ -159,7 +187,60 @@ esp_err_t lcd_init(void) {
     //lcd_update_page_seq_order(7, _tmp, 20);
     return ESP_OK;
 }
+#else
+esp_err_t lcd_init(void) {
+    ESP_ERROR_CHECK(nuttyPeripherals.initFSPIDevice(&lcd_spi, LCD_SPEED_HZ, 0, 7, SPI_DEVICE_NO_DUMMY, GPIO_LCD_CS, lcd_spi_pre_transfer_cb));
+    lcd_reset();
 
+    lcd_cmd(0xAE, false);//--turn off oled panel
+	lcd_cmd(0xFD, false);
+	lcd_cmd(0x12, false);
+	lcd_cmd(0xd5,false);//--set display clock divide ratio/oscillator frequency
+	lcd_cmd(0xA0,false);
+	lcd_cmd(0xA8,false);//--set multiplex ratio(1 to 64)
+	lcd_cmd(0x3f,false);//--1/64 duty
+	lcd_cmd(0xD3,false);//-set display offset	Shift Mapping RAM Counter (0x00~0x3F)
+	lcd_cmd(0x00,false);//-not offset
+	lcd_cmd(0x40,false);//--set start line address  Set Mapping RAM Display Start Line (0x00~0x3F)
+	lcd_cmd(0xA1,false);//--Set SEG/Column Mapping     0xa0×óÓÒ·ŽÖÃ 0xa1Õý³£
+	lcd_cmd(0xC8,false);//Set COM/Row Scan Direction   0xc0ÉÏÏÂ·ŽÖÃ 0xc8Õý³£
+	lcd_cmd(0xDA,false);//--set com pins hardware configuration
+	lcd_cmd(0x12,false);
+	lcd_cmd(0x81,false);//--set contrast control register
+	lcd_cmd(0xBF,false);// Set SEG Output Current Brightness
+	lcd_cmd(0xDB,false);//--set vcomh
+	//lcd_cmd(0x34,false);//Set VCOM Deselect Level
+	lcd_cmd(0x20,false);//Set VCOM Deselect Level
+
+
+
+	lcd_cmd(0xA4,false);// Disable Entire Display On (0xa4/0xa5)
+	lcd_cmd(0xA6,false);// Disable Inverse Display On (0xa6/a7)
+
+    
+    // uint8_t i=0;
+    // //for(i=0; i<14; i++) lcd_cmd(lcd_init_sequence[i], false);
+    // vTaskDelay(pdMS_TO_TICKS(100));
+	// lcd_cmd(0xa5, false); // display all points
+    // vTaskDelay(pdMS_TO_TICKS(200));
+	// lcd_cmd(0xa4, false); // normal display
+
+    lcd_clear();
+    lcd_cmd(0xAF,false); // LCD ON
+    lcd_cmd(0xD9, false);
+    lcd_cmd(0xF1, false);
+	lcd_cmd(0xDB,false);//--set vcomh
+	lcd_cmd(0x23,false);//Set VCOM Deselect Level
+    //lcd_pic(picture, 128*64);
+
+    //uint8_t *_tmp = malloc(128);
+    //memset(_tmp, 0xff, 128);
+    //lcd_update_page(4, _tmp, 128);
+
+    //lcd_update_page_seq_order(7, _tmp, 20);
+    return ESP_OK;
+}
+#endif
 
 
 NuttyDriverLCD nuttyDriverLCD = {

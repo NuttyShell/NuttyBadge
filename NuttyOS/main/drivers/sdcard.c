@@ -190,7 +190,12 @@ static esp_err_t mount_sd_card() {
     ff_sdmmc_set_disk_status_check(pdrv, mount_config.disk_status_check_enable);
     drv[0] = (char)('0' + pdrv);
     // connect FATFS to VFS
-    err = esp_vfs_fat_register(sd_path, drv, mount_config.max_files, &fs);
+    esp_vfs_fat_conf_t conf = {
+        .max_files = mount_config.max_files,
+        .fat_drive = drv,
+        .base_path = sd_path
+    };
+    err = esp_vfs_fat_register(&conf, &fs);
     ESP_LOGI(TAG, "pDrv: %02X; drv=%s", pdrv, drv);
     if (err == ESP_ERR_INVALID_STATE) {
         // it's okay, already registered with VFS
@@ -306,6 +311,5 @@ NuttyDriverSDCard nuttyDriverSDCard = {
     .getCardInserted = get_card_detect_inserted,
     .getSDCardSizeMB = get_sd_size_mb,
     .getSDCardType = get_sd_type,
-    .getCardInserted = get_card_detect_inserted,
     .lsDir = ls_dir
 };

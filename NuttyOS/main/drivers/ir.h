@@ -6,7 +6,7 @@
 #include <esp_err.h>
 #include <esp_rom_gpio.h>
 #include <esp_private/rmt.h>
-#include <soc/rmt_periph.h>
+#include "soc/gpio_sig_map.h"
 #include "hal/rmt_types.h"
 #include "NuttyPeripherals.h"
 #include "freertos/FreeRTOS.h"

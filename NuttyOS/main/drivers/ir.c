@@ -327,7 +327,7 @@ static esp_err_t ir_tx_necext(uint16_t address, uint16_t command) {
     ir_nec_scan_code_t code = {.address = address, .command = command};
     int rmt_cid;
     ESP_ERROR_CHECK(rmt_get_channel_id(ir_tx_channel, &rmt_cid));
-    esp_rom_gpio_connect_out_signal(GPIO_IR_TX_SDCD, rmt_periph_signals.groups[0].channels[rmt_cid].tx_sig, false, false);
+    esp_rom_gpio_connect_out_signal(GPIO_IR_TX_SDCD, RMT_SIG_OUT0_IDX + rmt_cid, false, false);
     ESP_ERROR_CHECK(gpio_set_drive_capability(GPIO_IR_TX_SDCD, GPIO_DRIVE_CAP_3));
     ESP_LOGI(TAG, "RMT: Tx");
     return rmt_transmit(ir_tx_channel, nec_ir_encoder, &code, sizeof(code), &ir_tx_config);
@@ -356,7 +356,7 @@ static esp_err_t ir_tx_raw(uint32_t freq_hz, double duty, uint32_t *data, size_t
     ir_raw_data_t raw_data = {.data = data, .dataCount = dataCount};
     int rmt_cid;
     ESP_ERROR_CHECK(rmt_get_channel_id(ir_tx_channel, &rmt_cid));
-    esp_rom_gpio_connect_out_signal(GPIO_IR_TX_SDCD, rmt_periph_signals.groups[0].channels[rmt_cid].tx_sig, false, false);
+    esp_rom_gpio_connect_out_signal(GPIO_IR_TX_SDCD, RMT_SIG_OUT0_IDX + rmt_cid, false, false);
     ESP_ERROR_CHECK(gpio_set_drive_capability(GPIO_IR_TX_SDCD, GPIO_DRIVE_CAP_3));
     rmt_raw_ir_encoder(&raw_data, &raw_ir_encoder);
     rmt_transmit(ir_tx_channel, raw_ir_encoder, data, dataCount, &ir_tx_config);

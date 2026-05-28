@@ -2,7 +2,7 @@
 
 This is the NuttyOS, a custom designed OS based on ESP-IDF (which is based on FreeRTOS). For ESP-IDF Docs, please read its [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/index.html)
 
-**ESP-IDF Required: v5.5.4**
+**ESP-IDF Required: v6.0.1**
 
 ## Basic Setup
 ### Bare Metal Setup

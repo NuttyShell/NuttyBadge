@@ -3135,6 +3135,47 @@ CONFIG_WL_SECTOR_SIZE=4096
 # end of Wear Levelling
 
 #
+# CMake Utilities
+#
+# default:
+# CONFIG_CU_RELINKER_ENABLE is not set
+# default:
+# CONFIG_CU_DIAGNOSTICS_COLOR_NEVER is not set
+# default:
+CONFIG_CU_DIAGNOSTICS_COLOR_ALWAYS=y
+# default:
+# CONFIG_CU_DIAGNOSTICS_COLOR_AUTO is not set
+# default:
+# CONFIG_CU_GCC_LTO_ENABLE is not set
+# default:
+# CONFIG_CU_GCC_STRING_1BYTE_ALIGN is not set
+# end of CMake Utilities
+
+#
+# Espressif ELF Loader Configuration
+#
+# default:
+CONFIG_ELF_LOADER_BUS_ADDRESS_MIRROR=y
+# default:
+CONFIG_ELF_LOADER=y
+# default:
+# CONFIG_ELF_DYNAMIC_LOAD_SHARED_OBJECT is not set
+
+#
+# ELF Symbols Table
+#
+# default:
+CONFIG_ELF_LOADER_LIBC_SYMBOLS=y
+# default:
+CONFIG_ELF_LOADER_ESPIDF_SYMBOLS=y
+# default:
+# CONFIG_ELF_LOADER_CUSTOMER_SYMBOLS is not set
+# default:
+CONFIG_ELF_LOADER_NUMBER_SYMBOLS=32
+# end of ELF Symbols Table
+# end of Espressif ELF Loader Configuration
+
+#
 # LVGL configuration
 #
 CONFIG_LV_CONF_SKIP=y

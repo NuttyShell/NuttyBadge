@@ -28,6 +28,22 @@ jobs:
 
           echo "BIN_NAME=nuttyos-${COMMIT_SHA}.bin" >> $GITHUB_OUTPUT
 
+      - name: Cache managed components
+        uses: actions/cache@v4
+        with:
+          path: NuttyOS/managed_components
+          key: managed-components-${{ hashFiles('NuttyOS/dependencies.lock') }}
+          restore-keys: |
+            managed-components-
+
+      - name: Cache build directory
+        uses: actions/cache@v4
+        with:
+          path: NuttyOS/build
+          key: esp-idf-build-${{ hashFiles('NuttyOS/**.[ch]', 'NuttyOS/sdkconfig', 'NuttyOS/dependencies.lock') }}
+          restore-keys: |
+            esp-idf-build-
+
       - name: Build NuttyOS
         uses: espressif/esp-idf-ci-action@v1
         with:

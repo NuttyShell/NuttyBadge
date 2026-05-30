@@ -7,6 +7,7 @@ idf_component_register(
                     SRCS "drivers/rgb.c"
                     SRCS "drivers/ir.c"
                     SRCS "drivers/sdcard.c"
+                    SRCS "drivers/kv.c"
                     SRCS ""
                     SRCS "services/NuttyAudio/NuttyAudio.c"
                     SRCS "services/NuttyInput/NuttyInput.c"

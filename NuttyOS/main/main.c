@@ -14,6 +14,7 @@
 #include "drivers/rgb.h"
 #include "drivers/ir.h"
 #include "drivers/sdcard.h"
+#include "drivers/kv.h"
 
 #include "services/NuttyAudio/NuttyAudio.h"
 #include "services/NuttyInput/NuttyInput.h"
@@ -66,6 +67,7 @@ void app_main(void) {
     ESP_ERROR_CHECK(nuttyPeripherals.initADC());
     ESP_ERROR_CHECK(nuttyPeripherals.initFSPI());
     ESP_ERROR_CHECK(nuttyPeripherals.initSDHost());
+    ESP_ERROR_CHECK(nuttyPeripherals.initNVS());
     // RMT (IR Tx/IR Rx/RGB) Does not need to init, will do for individual device
 
     // Nutty Drivers (IOE, LCD)
@@ -96,6 +98,7 @@ void app_main(void) {
     ESP_ERROR_CHECK(nuttyDriverRGB.initRGB(3));
     ESP_ERROR_CHECK(nuttyDriverIR.initIRTx());
     ESP_ERROR_CHECK(nuttyDriverIR.initIRRx());
+    ESP_ERROR_CHECK(nuttyDriverKV.initKV());
     //ESP_LOGI(TAG, "SD Init...");
     //ESP_ERROR_CHECK(nuttyDriverSDCard.initSDCard());
     //if(!nuttyDriverSDCard.isSDCardMounted()) {

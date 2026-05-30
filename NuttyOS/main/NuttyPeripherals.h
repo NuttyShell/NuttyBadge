@@ -20,6 +20,8 @@
 #include "diskio_impl.h"
 #include "diskio_sdmmc.h"
 
+#include "nvs_flash.h"
+#include "nvs.h"
 #include "config.h"
 
 typedef esp_err_t (*NuttyPeripheralsInitFunc)(void);
@@ -46,6 +48,7 @@ typedef struct _NuttyPeripherals {
     NuttyPeripheralsReadADCFunc readADC;
     NuttyPeripheralsInitFunc initSDHost;
     NuttyPeripheralsInitSDCardFunc initSDCard;
+    NuttyPeripheralsInitFunc initNVS;
 } NuttyPeripherals;
 extern NuttyPeripherals nuttyPeripherals;
 

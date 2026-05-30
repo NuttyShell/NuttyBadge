@@ -14,13 +14,11 @@
 static const char *TAG = "AudioPlayer";
 
 #define AUDIO_PLAYER_MAX_PATH 1024
-#define AUDIO_PLAYER_ACTION_COUNT 8
+#define AUDIO_PLAYER_ACTION_COUNT 6
 
 typedef enum {
     AUDIO_PLAYER_ACTION_SELECT_FILE = 0,
-    AUDIO_PLAYER_ACTION_PLAY_RESUME,
-    AUDIO_PLAYER_ACTION_PAUSE,
-    AUDIO_PLAYER_ACTION_STOP,
+    AUDIO_PLAYER_ACTION_PLAY_PAUSE,
     AUDIO_PLAYER_ACTION_TOGGLE_LOOP,
     AUDIO_PLAYER_ACTION_TOGGLE_BG,
     AUDIO_PLAYER_ACTION_TOGGLE_CRAZY,
@@ -63,9 +61,7 @@ static nutty_audio_player_state_t g_player = {
 
 static const char *g_actions[AUDIO_PLAYER_ACTION_COUNT] = {
     "Select File",
-    "Play / Resume",
-    "Pause",
-    "Stop",
+    "Play / Pause",
     "Loop",
     "BG",
     "Crazy",
@@ -701,9 +697,16 @@ static void nutty_main(void) {
                     }
                     break;
                 }
-                case AUDIO_PLAYER_ACTION_PLAY_RESUME: {
+                case AUDIO_PLAYER_ACTION_PLAY_PAUSE: {
                     audio_player_state_t state = audio_player_get_state();
-                    if(state == AUDIO_PLAYER_STATE_PAUSE) {
+                    if(state == AUDIO_PLAYER_STATE_PLAYING) {
+                        esp_err_t err = audio_player_pause();
+                        if(err == ESP_OK) {
+                            NuttySystemMonitor_setSystemTrayTempText("!Paused!", 12);
+                        } else {
+                            ESP_LOGW(TAG, "audio_player_pause failed: %s", esp_err_to_name(err));
+                        }
+                    } else if(state == AUDIO_PLAYER_STATE_PAUSE) {
                         esp_err_t err = audio_player_resume();
                         if(err == ESP_OK) {
                             NuttySystemMonitor_setSystemTrayTempText("!Resuming!", 12);
@@ -715,23 +718,6 @@ static void nutty_main(void) {
                             g_player.auto_loop_armed = false;
                         }
                     }
-                    break;
-                }
-                case AUDIO_PLAYER_ACTION_PAUSE: {
-                    esp_err_t err = audio_player_pause();
-                    if(err == ESP_OK) {
-                        NuttySystemMonitor_setSystemTrayTempText("!Paused!", 12);
-                    } else {
-                        ESP_LOGW(TAG, "audio_player_pause failed: %s", esp_err_to_name(err));
-                    }
-                    break;
-                }
-                case AUDIO_PLAYER_ACTION_STOP: {
-                    audio_player_stop_current(true);
-                    NuttySystemMonitor_setSystemTrayTempText("!Stopped!", 12);
-                    audio_player_set_crazy_enabled(false);
-                    audio_player_destroy_ui(&ui);
-                    audio_player_init_ui(&ui, &pending_action);
                     break;
                 }
                 case AUDIO_PLAYER_ACTION_TOGGLE_LOOP: {

@@ -11,18 +11,33 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v6
-        
+
+      - name: Get ESP-IDF version
+        id: idf_version
+        uses: mikefarah/yq@v4.53.2
+        with:
+          cmd: yq e '.dependencies.idf.version' NuttyOS/dependencies.lock
+
+      - name: Calculate binary name
+        id: bin_name
+        run: |
+          COMMIT_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+
+          # Shorten the SHA to 7 chars
+          COMMIT_SHA=${COMMIT_SHA:0:7}
+
+          echo "BIN_NAME=nuttyos-${COMMIT_SHA}.bin" >> $GITHUB_OUTPUT
+
       - name: Build NuttyOS
         uses: espressif/esp-idf-ci-action@v1
         with:
-          esp_idf_version: v6.0.1
+          esp_idf_version: v${{ steps.idf_version.outputs.result }}
           target: esp32s3
           path: "NuttyOS"
-          command: idf.py build merge-bin
+          command: idf.py build merge-bin -o ${{ steps.bin_name.outputs.BIN_NAME }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: NuttyOS Binary
-          path: NuttyOS/build/merged-binary.bin
+          path: NuttyOS/build/${{ steps.bin_name.outputs.BIN_NAME }}
           archive: false

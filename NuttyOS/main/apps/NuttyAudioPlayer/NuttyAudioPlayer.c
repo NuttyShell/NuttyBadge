@@ -250,7 +250,27 @@ static esp_err_t audio_player_write_pcm(void *audio_buffer, size_t len, size_t *
             if(scaled > 255U) {
                 scaled = 255U;
             }
-            g_player.crazy_level = (uint8_t)((g_player.crazy_level + (uint8_t)scaled * 3U) / 4U);
+
+            /* Peak detector: fast attack, slow decay for beat-flash effect */
+            if(scaled > g_player.crazy_level) {
+                g_player.crazy_level = (uint8_t)((g_player.crazy_level + (uint8_t)scaled) / 2U);
+            } else {
+                g_player.crazy_level = (uint8_t)(((uint16_t)g_player.crazy_level * 7U + (uint8_t)scaled) / 8U);
+            }
+
+            /* Drive LEDs directly from audio data for perfect beat sync */
+            const uint32_t now = xTaskGetTickCount();
+            if((now - g_player.crazy_tick) >= pdMS_TO_TICKS(30)) {
+                g_player.crazy_tick = now;
+                uint8_t level = g_player.crazy_level;
+                if(level < 3) { level = 0; }
+                uint8_t hue = (uint8_t)((now / pdMS_TO_TICKS(30)) % 255U);
+                for(uint8_t led = 0; led < RGB_BULBS; led++) {
+                    nuttyDriverRGB.setHSVWithoutDisplay(led, (uint8_t)(hue + (led * 32U)), 255, level);
+                }
+                nuttyDriverRGB.displayNow();
+                g_player.crazy_leds_active = true;
+            }
         }
 
         if(chunk_output_len > chunk_frames) {
@@ -416,7 +436,8 @@ static void audio_player_update_crazy_leds(void) {
     }
 
     audio_player_state_t state = audio_player_get_state();
-    if(state != AUDIO_PLAYER_STATE_PLAYING) {
+    if(state != AUDIO_PLAYER_STATE_PLAYING && !g_player.bg_enabled) {
+        /* Turn off LEDs only if not in BG mode — BG keeps music alive so LEDs run from PCM callback */
         if(g_player.crazy_leds_active) {
             for(uint8_t i = 0; i < RGB_BULBS; i++) {
                 nuttyDriverRGB.setRGBWithoutDisplay(i, 0, 0, 0);
@@ -424,26 +445,7 @@ static void audio_player_update_crazy_leds(void) {
             nuttyDriverRGB.displayNow();
             g_player.crazy_leds_active = false;
         }
-        return;
     }
-
-    const uint32_t now = xTaskGetTickCount();
-    if((now - g_player.crazy_tick) < pdMS_TO_TICKS(30)) {
-        return;
-    }
-    g_player.crazy_tick = now;
-
-    uint8_t level = g_player.crazy_level;
-    if(level < 3) {
-        level = 0;
-    }
-    uint8_t hue = (uint8_t)((now / pdMS_TO_TICKS(30)) % 255U);
-
-    for(uint8_t i = 0; i < RGB_BULBS; i++) {
-        nuttyDriverRGB.setHSVWithoutDisplay(i, (uint8_t)(hue + (i * 32U)), 255, level);
-    }
-    nuttyDriverRGB.displayNow();
-    g_player.crazy_leds_active = true;
 }
 
 static void audio_player_destroy_ui(audio_player_ui_t *ui) {
@@ -751,8 +753,8 @@ static void nutty_main(void) {
                 case AUDIO_PLAYER_ACTION_EXIT: {
                     if(!g_player.bg_enabled) {
                         audio_player_stop_current(true);
+                        audio_player_set_crazy_enabled(false);
                     }
-                    audio_player_set_crazy_enabled(false);
                     exit_app = true;
                     break;
                 }

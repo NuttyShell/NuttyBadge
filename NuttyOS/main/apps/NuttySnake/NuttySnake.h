@@ -21,7 +21,6 @@ typedef struct _NuttySnakeConfig {
 
 typedef struct _NuttySnakeQueue {
     struct _NuttySnakeQueue *next;
-    lv_obj_t *current;
     uint8_t X;
     uint8_t Y;
 } _NuttySnakeQueue;

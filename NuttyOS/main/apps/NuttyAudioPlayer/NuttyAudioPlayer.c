@@ -254,7 +254,7 @@ static esp_err_t audio_player_write_pcm(void *audio_buffer, size_t len, size_t *
             if(scaled > 255U) {
                 scaled = 255U;
             }
-            g_player.crazy_level = (uint8_t)((g_player.crazy_level * 3U + (uint8_t)scaled) / 4U);
+            g_player.crazy_level = (uint8_t)((g_player.crazy_level + (uint8_t)scaled * 3U) / 4U);
         }
 
         if(chunk_output_len > chunk_frames) {
@@ -374,6 +374,7 @@ static void audio_player_refresh_ui_if_needed(lv_obj_t *fileLabel, lv_obj_t *sta
 typedef struct {
     lv_group_t *group;
     lv_obj_t *menu;
+    lv_obj_t *mainPage;
     lv_obj_t *fileLabel;
     lv_obj_t *stateLabel;
     lv_obj_t *action_labels[AUDIO_PLAYER_ACTION_COUNT];
@@ -390,6 +391,16 @@ static bool audio_player_ui_is_valid(const audio_player_ui_t *ui) {
     }
 
     return lv_obj_is_valid(ui->menu) && lv_obj_is_valid(ui->fileLabel) && lv_obj_is_valid(ui->stateLabel);
+}
+
+static void audio_player_ensure_main_page(const audio_player_ui_t *ui) {
+    if(ui == NULL || ui->menu == NULL || ui->mainPage == NULL) {
+        return;
+    }
+    if(!lv_obj_is_valid(ui->menu) || !lv_obj_is_valid(ui->mainPage)) {
+        return;
+    }
+    lv_menu_set_page(ui->menu, ui->mainPage);
 }
 
 static void audio_player_set_crazy_enabled(bool enabled) {
@@ -411,23 +422,26 @@ static void audio_player_update_crazy_leds(void) {
     audio_player_state_t state = audio_player_get_state();
     if(state != AUDIO_PLAYER_STATE_PLAYING) {
         if(g_player.crazy_leds_active) {
-            audio_player_set_crazy_enabled(false);
-            g_player.crazy_enabled = true;
+            for(uint8_t i = 0; i < RGB_BULBS; i++) {
+                nuttyDriverRGB.setRGBWithoutDisplay(i, 0, 0, 0);
+            }
+            nuttyDriverRGB.displayNow();
+            g_player.crazy_leds_active = false;
         }
         return;
     }
 
     const uint32_t now = xTaskGetTickCount();
-    if((now - g_player.crazy_tick) < pdMS_TO_TICKS(50)) {
+    if((now - g_player.crazy_tick) < pdMS_TO_TICKS(30)) {
         return;
     }
     g_player.crazy_tick = now;
 
     uint8_t level = g_player.crazy_level;
-    if(level < 8) {
+    if(level < 3) {
         level = 0;
     }
-    uint8_t hue = (uint8_t)((now / pdMS_TO_TICKS(50)) % 255U);
+    uint8_t hue = (uint8_t)((now / pdMS_TO_TICKS(30)) % 255U);
 
     for(uint8_t i = 0; i < RGB_BULBS; i++) {
         nuttyDriverRGB.setHSVWithoutDisplay(i, (uint8_t)(hue + (i * 32U)), 255, level);
@@ -506,6 +520,7 @@ static void audio_player_init_ui(audio_player_ui_t *ui, audio_player_action_t *p
     lv_obj_add_event_cb(ui->menu, audio_player_menu_key_cb, LV_EVENT_KEY, &ui->key_ctx);
 
     lv_obj_t *mainPage = lv_menu_page_create(ui->menu, NULL);
+    ui->mainPage = mainPage;
     for(uint8_t i = 0; i < AUDIO_PLAYER_ACTION_COUNT; i++) {
         lv_obj_t *cont = lv_menu_cont_create(mainPage);
         lv_obj_t *label = lv_label_create(cont);
@@ -757,6 +772,9 @@ static void nutty_main(void) {
                 }
             }
             pending_action = AUDIO_PLAYER_ACTION_COUNT;
+            NuttyDisplay_lockLVGL();
+            audio_player_ensure_main_page(&ui);
+            NuttyDisplay_unlockLVGL();
         }
 
         audio_player_handle_auto_loop();
@@ -764,6 +782,7 @@ static void nutty_main(void) {
 
         if(ui.fileLabel != NULL && ui.stateLabel != NULL) {
             NuttyDisplay_lockLVGL();
+            audio_player_ensure_main_page(&ui);
             audio_player_refresh_ui_if_needed(
                 ui.fileLabel,
                 ui.stateLabel,

@@ -1,5 +1,7 @@
 #include "NuttySnake.h"
 
+#include "services/NuttyStorage/NuttyStorage.h"
+
 static const char *TAG = "Snake";
 
 /* TRUE_COLOR pixel buffer: 1 byte/pixel, 0=visible, 1=hidden (active-low LCD) */
@@ -54,16 +56,46 @@ static void draw_wall(void) {
     for (uint8_t y = 2; y < 56; y += 2) draw_wall_block(126, y);
 }
 
+/* ---- Scoreboard: top 5 scores persisted via NVS blob ---- */
+#define SCOREBOARD_KEY "snake_scores"
+#define SCOREBOARD_SIZE 5
+
+static void scoreboard_load(uint16_t *scores) {
+    uint16_t defaults[SCOREBOARD_SIZE] = {0};
+    NuttyStorage_getBlobKV(SCOREBOARD_KEY, scores, SCOREBOARD_SIZE * sizeof(uint16_t), defaults, SCOREBOARD_SIZE * sizeof(uint16_t));
+}
+
+static void scoreboard_save(uint16_t *scores) {
+    NuttyStorge_setBlobKV(SCOREBOARD_KEY, scores, SCOREBOARD_SIZE * sizeof(uint16_t));
+}
+
+/* Insert score into top 5 (descending). Returns rank 0-4 if qualified, -1 if not */
+static int8_t scoreboard_insert(uint16_t *scores, uint16_t score) {
+    for (uint8_t i = 0; i < SCOREBOARD_SIZE; i++) {
+        if (score > scores[i]) {
+            /* Shift lower scores down */
+            for (int8_t j = SCOREBOARD_SIZE - 1; j > i; j--) {
+                scores[j] = scores[j - 1];
+            }
+            scores[i] = score;
+            scoreboard_save(scores);
+            return (int8_t)i;
+        }
+    }
+    return -1;
+}
+
 static const char *menuChoices[] = {
     "Start",
+    "Scoreboard",
     "Edit Difficulty",
     "Tutorial",
     "< Back"
 };
 
 static _NuttySnakeConfig snake_config = {
-    .difficulty = 4,
-    .speed = 230
+    .difficulty = 5,
+    .speed = 140
 };
 
 static _NuttySnakeQueue* snake;
@@ -107,8 +139,35 @@ static int64_t min(int64_t a, int64_t b){
 
 static void set_difficulty(uint8_t difficulty){
     snake_config.difficulty = difficulty;
-    snake_config.speed = 350 - difficulty * 30;
+    snake_config.speed = 250 - difficulty * 22;
     ESP_LOGI(TAG, "Change difficulty->%d speed->%d", snake_config.difficulty, snake_config.speed);
+}
+
+static void show_scoreboard(void) {
+    lv_style_t lbl_font_nano;
+    lv_style_init(&lbl_font_nano);
+    lv_style_set_text_font(&lbl_font_nano, &cg_pixel_4x5_mono);
+
+    uint16_t scores[SCOREBOARD_SIZE];
+    scoreboard_load(scores);
+
+    lv_obj_t *drawArea = NuttyDisplay_getUserAppArea();
+    NuttyDisplay_lockLVGL();
+    new_label("Best Scores", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 4);
+    char line[24];
+    for (uint8_t i = 0; i < SCOREBOARD_SIZE; i++) {
+        snprintf(line, sizeof(line), "%d.  %d", i + 1, scores[i]);
+        new_label(line, drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 14 + i * 9);
+    }
+    NuttyDisplay_unlockLVGL();
+
+    NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(10));
+        if (NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_ALL)) break;
+    }
+    lv_style_reset(&lbl_font_nano);
+    NuttyDisplay_clearUserAppArea();
 }
 
 
@@ -174,7 +233,8 @@ static void snake_start(){
     lv_obj_invalidate(snake_img_obj);
     NuttyDisplay_unlockLVGL();
 
-    uint8_t counter = 0, score = 0;
+    uint8_t counter = 0;
+    uint16_t score = 0;
     enum _NuttySnakeDIRECTION nextStep = UP;
     enum _NuttySnakeDIRECTION lastDir = UP;
     bool ticking = true;
@@ -221,6 +281,17 @@ static void snake_start(){
                     char lose[32];
                     snprintf(lose, sizeof(lose), "Score: %d", score);
                     NuttySystemMonitor_setSystemTrayTempText(lose, 30);
+
+                    /* Check scoreboard */
+                    uint16_t scores[SCOREBOARD_SIZE];
+                    scoreboard_load(scores);
+                    int8_t rank = scoreboard_insert(scores, score);
+                    if (rank >= 0) {
+                        char newhi[32];
+                        snprintf(newhi, sizeof(newhi), "NEW #%d! Score: %d", rank + 1, score);
+                        NuttySystemMonitor_setSystemTrayTempText(newhi, 60);
+                    }
+
                     vTaskDelay(pdMS_TO_TICKS(1500));
                     break;
                 }
@@ -231,7 +302,11 @@ static void snake_start(){
                 bool ate = (nextX == foodX && nextY == foodY);
 
                 if(ate) {
-                    score++;
+                    uint8_t pts = snake_config.difficulty + 1;
+                    score += pts;
+                    char eatMsg[24];
+                    snprintf(eatMsg, sizeof(eatMsg), "+%d  Score: %d", pts, score);
+                    NuttySystemMonitor_setSystemTrayTempText(eatMsg, 10);
                     /* Spawn new food */
                     do{
                         foodX = rand() % 62 + 1;
@@ -455,10 +530,12 @@ static void nutty_main(void) {
                 if(selectedChoice == menuChoices[0]) {
                     snake_start();
                 }else if(selectedChoice == menuChoices[1]) {
-                    option_difficulty();
+                    show_scoreboard();
                 }else if(selectedChoice == menuChoices[2]) {
-                    tutorial();
+                    option_difficulty();
                 }else if(selectedChoice == menuChoices[3]) {
+                    tutorial();
+                }else if(selectedChoice == menuChoices[4]) {
                     exitApp = true;
                 }
                 break;

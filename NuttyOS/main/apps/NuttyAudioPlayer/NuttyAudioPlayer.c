@@ -258,15 +258,15 @@ static esp_err_t audio_player_write_pcm(void *audio_buffer, size_t len, size_t *
                 g_player.crazy_level = (uint8_t)(((uint16_t)g_player.crazy_level * 7U + (uint8_t)scaled) / 8U);
             }
 
-            /* Drive LEDs directly from audio data for perfect beat sync */
+            /* Drive LEDs from audio amplitude — brightness follows the beat */
             const uint32_t now = xTaskGetTickCount();
             if((now - g_player.crazy_tick) >= pdMS_TO_TICKS(30)) {
                 g_player.crazy_tick = now;
                 uint8_t level = g_player.crazy_level;
                 if(level < 3) { level = 0; }
-                uint8_t hue = (uint8_t)((now / pdMS_TO_TICKS(30)) % 255U);
+                /* Fixed warm-red hue, brightness follows the beat amplitude */
                 for(uint8_t led = 0; led < RGB_BULBS; led++) {
-                    nuttyDriverRGB.setHSVWithoutDisplay(led, (uint8_t)(hue + (led * 32U)), 255, level);
+                    nuttyDriverRGB.setHSVWithoutDisplay(led, 0, 255, level);
                 }
                 nuttyDriverRGB.displayNow();
                 g_player.crazy_leds_active = true;

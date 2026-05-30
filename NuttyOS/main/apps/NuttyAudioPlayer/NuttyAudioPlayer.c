@@ -39,6 +39,9 @@ typedef struct {
     uint32_t crazy_tick;
     uint32_t input_channels;
     uint32_t sample_rate;
+    uint32_t fade_frames_remaining;
+    int32_t dc_x1;
+    int32_t dc_y1;
     char current_path[AUDIO_PLAYER_MAX_PATH];
 } nutty_audio_player_state_t;
 
@@ -236,6 +239,30 @@ static esp_err_t audio_player_write_pcm(void *audio_buffer, size_t len, size_t *
                 mono = ((int32_t)src[base] + (int32_t)src[base + 1U]) / 2;
             }
 
+            /* --- Audio clean-up: DC blocker + soft limiter + fade-in --- */
+
+            /* 1) Single-pole DC-blocking HPF (alpha = 255/256, fc ≈ 30 Hz @ 48 kHz) */
+            int32_t dc_in = mono;
+            mono = dc_in - g_player.dc_x1 + g_player.dc_y1 - (g_player.dc_y1 >> 8);
+            g_player.dc_x1 = dc_in;
+            g_player.dc_y1 = mono;
+
+            /* 2) Soft limiter — gentle knee at ±28000 to prevent volume-boost clipping */
+            if(mono > 28000) {
+                mono = 28000 + ((mono - 28000) >> 2);
+            } else if(mono < -28000) {
+                mono = -28000 + ((mono + 28000) >> 2);
+            }
+
+            /* 3) Fade-in on first frames to kill startup pop */
+            if(g_player.fade_frames_remaining > 0) {
+                uint32_t fade = g_player.fade_frames_remaining;
+                mono = (int32_t)(((int64_t)mono * (int64_t)(240U - fade)) / 240U);
+                g_player.fade_frames_remaining--;
+            }
+
+            /* --- End audio clean-up --- */
+
             if(g_player.crazy_enabled) {
                 int32_t abs_mono = mono < 0 ? -mono : mono;
                 level_sum += (uint32_t)abs_mono;
@@ -328,6 +355,13 @@ static esp_err_t audio_player_backend_init(void) {
     }
 
     g_player.backend_ready = true;
+
+    /* Crank the volume to max (+16 = double output) */
+    esp_err_t vol_err = pwm_audio_set_volume(16);
+    if(vol_err != ESP_OK) {
+        ESP_LOGW(TAG, "pwm_audio_set_volume failed: %s", esp_err_to_name(vol_err));
+    }
+
     return ESP_OK;
 }
 
@@ -605,6 +639,9 @@ static esp_err_t audio_player_start_selected_file(void) {
     g_player.play_request_in_flight = true;
     g_player.play_request_tick = xTaskGetTickCount();
     g_player.auto_loop_armed = true;
+    g_player.dc_x1 = 0;
+    g_player.dc_y1 = 0;
+    g_player.fade_frames_remaining = 240; /* ~5ms fade-in at 48kHz */
 
     NuttySystemMonitor_setSystemTrayTempText("!Playing...", 12);
     return ESP_OK;

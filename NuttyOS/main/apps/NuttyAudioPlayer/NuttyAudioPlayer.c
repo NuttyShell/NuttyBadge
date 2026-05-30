@@ -61,6 +61,18 @@ static const char *g_actions[AUDIO_PLAYER_ACTION_COUNT] = {
     "Exit",
 };
 
+typedef struct {
+    audio_player_action_t action;
+    audio_player_action_t *pending_action;
+} audio_player_action_ctx_t;
+
+static void audio_player_menu_action_cb(lv_event_t *event) {
+    audio_player_action_ctx_t *ctx = (audio_player_action_ctx_t *)lv_event_get_user_data(event);
+    if(ctx != NULL && ctx->pending_action != NULL) {
+        *ctx->pending_action = ctx->action;
+    }
+}
+
 static const char *audio_player_state_to_text(audio_player_state_t state) {
     switch(state) {
         case AUDIO_PLAYER_STATE_IDLE:
@@ -103,6 +115,22 @@ static bool audio_player_is_mp3_path(const char *path) {
     }
 
     return (target[i] == '\0' && ext[i + 1] == '\0');
+}
+
+static bool audio_player_validate_selected_path(void) {
+    if(!g_player.has_file) {
+        return false;
+    }
+
+    if(!audio_player_is_mp3_path(g_player.current_path)) {
+        g_player.has_file = false;
+        g_player.auto_loop_armed = false;
+        g_player.current_path[0] = '\0';
+        NuttySystemMonitor_setSystemTrayTempText("!! MP3 only !!", 20);
+        return false;
+    }
+
+    return true;
 }
 
 static esp_err_t audio_player_output_reconfig(uint32_t rate, uint32_t bits_cfg, i2s_slot_mode_t ch) {
@@ -246,22 +274,54 @@ static esp_err_t audio_player_backend_init(void) {
     return ESP_OK;
 }
 
-static void audio_player_apply_action_label(lv_obj_t *label, uint8_t selected_action) {
-    lv_label_set_text_fmt(label, "Action %u/%u: %s", (unsigned)(selected_action + 1U), (unsigned)AUDIO_PLAYER_ACTION_COUNT, g_actions[selected_action]);
-}
+typedef struct {
+    bool valid;
+    bool has_file;
+    bool loop_enabled;
+    bool bg_enabled;
+    bool play_request_in_flight;
+    audio_player_state_t state;
+    char path[AUDIO_PLAYER_MAX_PATH];
+} audio_player_ui_cache_t;
 
-static void audio_player_refresh_ui(lv_obj_t *fileLabel, lv_obj_t *stateLabel, lv_obj_t *actionLabel, lv_obj_t *modeLabel, uint8_t selected_action) {
+static audio_player_ui_cache_t g_ui_cache = {0};
+
+static void audio_player_refresh_ui_if_needed(lv_obj_t *fileLabel, lv_obj_t *stateLabel, lv_obj_t *loopLabel, lv_obj_t *bgLabel, bool force) {
+    const bool need_force = force || !g_ui_cache.valid;
     audio_player_state_t state = audio_player_get_state();
 
-    lv_label_set_text_fmt(
-        fileLabel,
-        "File: %s",
-        g_player.has_file ? audio_player_basename(g_player.current_path) : "<none>"
-    );
+    if(need_force || g_ui_cache.has_file != g_player.has_file ||
+       (g_player.has_file && strcmp(g_ui_cache.path, g_player.current_path) != 0)) {
+        lv_label_set_text_fmt(
+            fileLabel,
+            "File: %s",
+            g_player.has_file ? audio_player_basename(g_player.current_path) : "<none>"
+        );
+        g_ui_cache.has_file = g_player.has_file;
+        if(g_player.has_file) {
+            strlcpy(g_ui_cache.path, g_player.current_path, sizeof(g_ui_cache.path));
+        } else {
+            g_ui_cache.path[0] = '\0';
+        }
+    }
 
-    lv_label_set_text_fmt(stateLabel, "State: %s%s", audio_player_state_to_text(state), g_player.play_request_in_flight ? " *" : "");
-    audio_player_apply_action_label(actionLabel, selected_action);
-    lv_label_set_text_fmt(modeLabel, "Loop:%s  BG:%s  A=OK", g_player.loop_enabled ? "ON" : "OFF", g_player.bg_enabled ? "ON" : "OFF");
+    if(need_force || g_ui_cache.state != state || g_ui_cache.play_request_in_flight != g_player.play_request_in_flight) {
+        lv_label_set_text_fmt(stateLabel, "State: %s%s", audio_player_state_to_text(state), g_player.play_request_in_flight ? " *" : "");
+        g_ui_cache.state = state;
+        g_ui_cache.play_request_in_flight = g_player.play_request_in_flight;
+    }
+
+    if(loopLabel != NULL && (need_force || g_ui_cache.loop_enabled != g_player.loop_enabled)) {
+        lv_label_set_text_fmt(loopLabel, "Loop: %s", g_player.loop_enabled ? "ON" : "OFF");
+        g_ui_cache.loop_enabled = g_player.loop_enabled;
+    }
+
+    if(bgLabel != NULL && (need_force || g_ui_cache.bg_enabled != g_player.bg_enabled)) {
+        lv_label_set_text_fmt(bgLabel, "BG: %s", g_player.bg_enabled ? "ON" : "OFF");
+        g_ui_cache.bg_enabled = g_player.bg_enabled;
+    }
+
+    g_ui_cache.valid = true;
 }
 
 static bool audio_player_pick_file(char *selected_path, size_t selected_path_len) {
@@ -299,6 +359,10 @@ static bool audio_player_pick_file(char *selected_path, size_t selected_path_len
 static esp_err_t audio_player_start_selected_file(void) {
     if(!g_player.has_file) {
         NuttySystemMonitor_setSystemTrayTempText("!! No file selected !!", 20);
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if(!audio_player_validate_selected_path()) {
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -375,71 +439,87 @@ static void nutty_main(void) {
         NuttySystemMonitor_setSystemTrayTempText("!! Audio backend init failed !!", 30);
     }
 
-    lv_style_t title_style;
-    lv_style_t text_style;
-    lv_style_init(&title_style);
-    lv_style_init(&text_style);
-    lv_style_set_text_font(&title_style, &lv_font_montserrat_10);
-    lv_style_set_text_font(&text_style, &lv_font_montserrat_8);
+    NuttyInputLVGLInputMapping mapping = {
+        .UP=LV_KEY_PREV,
+        .DOWN=LV_KEY_NEXT,
+        .A=LV_KEY_ENTER,
+    };
+    lv_indev_t *indev = NuttyInput_UpdateLVGLInDev(mapping);
+    assert(indev != NULL);
+
+    static lv_group_t *g;
+    g = lv_group_create();
+    assert(g != NULL);
+    lv_group_set_default(g);
+    lv_indev_set_group(indev, g);
+
+    lv_style_t header_style;
+    lv_style_t menu_style;
+    lv_style_init(&header_style);
+    lv_style_init(&menu_style);
+    lv_style_set_text_font(&header_style, &lv_font_montserrat_8);
+    lv_style_set_text_font(&menu_style, &lv_font_montserrat_10);
+
+    memset(&g_ui_cache, 0, sizeof(g_ui_cache));
 
     lv_obj_t *drawArea = NuttyDisplay_getUserAppArea();
 
     NuttyDisplay_lockLVGL();
-    lv_obj_t *titleLabel = lv_label_create(drawArea);
-    lv_obj_add_style(titleLabel, &title_style, LV_PART_MAIN);
-    lv_label_set_text(titleLabel, "Audio Player");
-    lv_obj_align(titleLabel, LV_ALIGN_TOP_MID, 0, 0);
-
     lv_obj_t *fileLabel = lv_label_create(drawArea);
-    lv_obj_add_style(fileLabel, &text_style, LV_PART_MAIN);
+    lv_obj_add_style(fileLabel, &header_style, LV_PART_MAIN);
     lv_label_set_long_mode(fileLabel, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_width(fileLabel, lv_obj_get_width(drawArea));
-    lv_obj_align(fileLabel, LV_ALIGN_TOP_LEFT, 0, 10);
+    lv_obj_align(fileLabel, LV_ALIGN_TOP_LEFT, 0, 0);
 
     lv_obj_t *stateLabel = lv_label_create(drawArea);
-    lv_obj_add_style(stateLabel, &text_style, LV_PART_MAIN);
+    lv_obj_add_style(stateLabel, &header_style, LV_PART_MAIN);
     lv_obj_set_width(stateLabel, lv_obj_get_width(drawArea));
-    lv_obj_align(stateLabel, LV_ALIGN_TOP_LEFT, 0, 20);
+    lv_obj_align(stateLabel, LV_ALIGN_TOP_LEFT, 0, 9);
 
-    lv_obj_t *actionLabel = lv_label_create(drawArea);
-    lv_obj_add_style(actionLabel, &text_style, LV_PART_MAIN);
-    lv_obj_set_width(actionLabel, lv_obj_get_width(drawArea));
-    lv_obj_align(actionLabel, LV_ALIGN_TOP_LEFT, 0, 30);
+    const uint16_t header_height = 18;
+    lv_obj_t *menu = lv_menu_create(drawArea);
+    lv_obj_set_size(menu, lv_obj_get_width(drawArea), lv_obj_get_height(drawArea) - header_height);
+    lv_obj_align(menu, LV_ALIGN_BOTTOM_MID, 0, 0);
 
-    lv_obj_t *modeLabel = lv_label_create(drawArea);
-    lv_obj_add_style(modeLabel, &text_style, LV_PART_MAIN);
-    lv_label_set_long_mode(modeLabel, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_obj_set_width(modeLabel, lv_obj_get_width(drawArea));
-    lv_obj_align(modeLabel, LV_ALIGN_TOP_LEFT, 0, 40);
+    lv_obj_t *mainPage = lv_menu_page_create(menu, NULL);
+    lv_obj_t *cont = NULL;
+    lv_obj_t *label = NULL;
+    lv_obj_t *action_labels[AUDIO_PLAYER_ACTION_COUNT] = {0};
+    audio_player_action_t pending_action = AUDIO_PLAYER_ACTION_COUNT;
+    audio_player_action_ctx_t action_ctx[AUDIO_PLAYER_ACTION_COUNT] = {0};
 
-    lv_obj_t *helpLabel = lv_label_create(drawArea);
-    lv_obj_add_style(helpLabel, &text_style, LV_PART_MAIN);
-    lv_obj_set_width(helpLabel, lv_obj_get_width(drawArea));
-    lv_label_set_text(helpLabel, "UP/DN  A=OK  B/START=Exit");
-    lv_obj_align(helpLabel, LV_ALIGN_TOP_LEFT, 0, 50);
+    for(uint8_t i = 0; i < AUDIO_PLAYER_ACTION_COUNT; i++) {
+        cont = lv_menu_cont_create(mainPage);
+        label = lv_label_create(cont);
+        lv_obj_add_style(label, &menu_style, LV_PART_MAIN);
+        lv_label_set_text(label, g_actions[i]);
+        action_labels[i] = label;
+        lv_menu_set_load_page_event(menu, cont, NULL);
+        action_ctx[i].action = (audio_player_action_t)i;
+        action_ctx[i].pending_action = &pending_action;
+        lv_obj_add_event_cb(cont, audio_player_menu_action_cb, LV_EVENT_CLICKED, &action_ctx[i]);
+        lv_obj_set_style_outline_width(cont, 1, LV_STATE_FOCUS_KEY);
+        lv_group_add_obj(g, cont);
+    }
+
+    lv_menu_set_page(menu, mainPage);
+    audio_player_refresh_ui_if_needed(
+        fileLabel,
+        stateLabel,
+        action_labels[AUDIO_PLAYER_ACTION_TOGGLE_LOOP],
+        action_labels[AUDIO_PLAYER_ACTION_TOGGLE_BG],
+        true
+    );
     NuttyDisplay_unlockLVGL();
 
-    uint8_t selected_action = AUDIO_PLAYER_ACTION_SELECT_FILE;
     bool exit_app = false;
     char selected_path[AUDIO_PLAYER_MAX_PATH] = {0};
 
     NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
 
     while(!exit_app) {
-        if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_UP)) {
-            if(selected_action == 0U) {
-                selected_action = AUDIO_PLAYER_ACTION_COUNT - 1U;
-            } else {
-                selected_action--;
-            }
-        }
-
-        if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_DOWN)) {
-            selected_action = (uint8_t)((selected_action + 1U) % AUDIO_PLAYER_ACTION_COUNT);
-        }
-
-        if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_A)) {
-            switch(selected_action) {
+        if(pending_action != AUDIO_PLAYER_ACTION_COUNT) {
+            switch(pending_action) {
                 case AUDIO_PLAYER_ACTION_SELECT_FILE: {
                     memset(selected_path, 0x00, sizeof(selected_path));
                     if(audio_player_pick_file(selected_path, sizeof(selected_path))) {
@@ -508,6 +588,7 @@ static void nutty_main(void) {
                     break;
                 }
             }
+            pending_action = AUDIO_PLAYER_ACTION_COUNT;
         }
 
         if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_B) ||
@@ -521,12 +602,23 @@ static void nutty_main(void) {
         audio_player_handle_auto_loop();
 
         NuttyDisplay_lockLVGL();
-        audio_player_refresh_ui(fileLabel, stateLabel, actionLabel, modeLabel, selected_action);
+        audio_player_refresh_ui_if_needed(
+            fileLabel,
+            stateLabel,
+            action_labels[AUDIO_PLAYER_ACTION_TOGGLE_LOOP],
+            action_labels[AUDIO_PLAYER_ACTION_TOGGLE_BG],
+            false
+        );
         NuttyDisplay_unlockLVGL();
 
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 
+    NuttyDisplay_lockLVGL();
+    lv_group_remove_all_objs(g);
+    lv_group_del(g);
+    lv_group_set_default(NULL);
+    NuttyDisplay_unlockLVGL();
     NuttyDisplay_clearUserAppArea();
     NuttyApps_launchAppByIndex(0);
 }

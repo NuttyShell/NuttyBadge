@@ -8,12 +8,13 @@
 #include <string.h>
 
 #include "audio_player.h"
+#include "drivers/rgb.h"
 #include "drivers/pwm_audio.h"
 
 static const char *TAG = "AudioPlayer";
 
 #define AUDIO_PLAYER_MAX_PATH 1024
-#define AUDIO_PLAYER_ACTION_COUNT 7
+#define AUDIO_PLAYER_ACTION_COUNT 8
 
 typedef enum {
     AUDIO_PLAYER_ACTION_SELECT_FILE = 0,
@@ -22,6 +23,7 @@ typedef enum {
     AUDIO_PLAYER_ACTION_STOP,
     AUDIO_PLAYER_ACTION_TOGGLE_LOOP,
     AUDIO_PLAYER_ACTION_TOGGLE_BG,
+    AUDIO_PLAYER_ACTION_TOGGLE_CRAZY,
     AUDIO_PLAYER_ACTION_EXIT,
 } audio_player_action_t;
 
@@ -30,9 +32,13 @@ typedef struct {
     bool has_file;
     bool loop_enabled;
     bool bg_enabled;
+    bool crazy_enabled;
+    bool crazy_leds_active;
     bool play_request_in_flight;
     bool auto_loop_armed;
+    uint8_t crazy_level;
     uint32_t play_request_tick;
+    uint32_t crazy_tick;
     uint32_t input_channels;
     uint32_t sample_rate;
     char current_path[AUDIO_PLAYER_MAX_PATH];
@@ -43,9 +49,13 @@ static nutty_audio_player_state_t g_player = {
     .has_file = false,
     .loop_enabled = false,
     .bg_enabled = false,
+    .crazy_enabled = false,
+    .crazy_leds_active = false,
     .play_request_in_flight = false,
     .auto_loop_armed = false,
+    .crazy_level = 0,
     .play_request_tick = 0,
+    .crazy_tick = 0,
     .input_channels = 1,
     .sample_rate = 48000,
     .current_path = {0},
@@ -58,6 +68,7 @@ static const char *g_actions[AUDIO_PLAYER_ACTION_COUNT] = {
     "Stop",
     "Loop",
     "BG",
+    "Crazy",
     "Exit",
 };
 
@@ -218,6 +229,7 @@ static esp_err_t audio_player_write_pcm(void *audio_buffer, size_t len, size_t *
             return ESP_ERR_NO_MEM;
         }
 
+        uint32_t level_sum = 0;
         for(size_t i = 0; i < chunk_frames; i++) {
             int32_t mono = 0;
 
@@ -228,7 +240,21 @@ static esp_err_t audio_player_write_pcm(void *audio_buffer, size_t len, size_t *
                 mono = ((int32_t)src[base] + (int32_t)src[base + 1U]) / 2;
             }
 
+            if(g_player.crazy_enabled) {
+                int32_t abs_mono = mono < 0 ? -mono : mono;
+                level_sum += (uint32_t)abs_mono;
+            }
+
             converted[i] = (uint8_t)(((mono + 32768) >> 8) & 0xFF);
+        }
+
+        if(g_player.crazy_enabled && chunk_frames > 0) {
+            uint32_t avg = level_sum / chunk_frames;
+            uint32_t scaled = avg >> 7;
+            if(scaled > 255U) {
+                scaled = 255U;
+            }
+            g_player.crazy_level = (uint8_t)((g_player.crazy_level * 3U + (uint8_t)scaled) / 4U);
         }
 
         if(chunk_output_len > chunk_frames) {
@@ -294,6 +320,7 @@ typedef struct {
     bool has_file;
     bool loop_enabled;
     bool bg_enabled;
+    bool crazy_enabled;
     bool play_request_in_flight;
     audio_player_state_t state;
     char path[AUDIO_PLAYER_MAX_PATH];
@@ -301,7 +328,7 @@ typedef struct {
 
 static audio_player_ui_cache_t g_ui_cache = {0};
 
-static void audio_player_refresh_ui_if_needed(lv_obj_t *fileLabel, lv_obj_t *stateLabel, lv_obj_t *loopLabel, lv_obj_t *bgLabel, bool force) {
+static void audio_player_refresh_ui_if_needed(lv_obj_t *fileLabel, lv_obj_t *stateLabel, lv_obj_t *loopLabel, lv_obj_t *bgLabel, lv_obj_t *crazyLabel, bool force) {
     const bool need_force = force || !g_ui_cache.valid;
     audio_player_state_t state = audio_player_get_state();
 
@@ -336,6 +363,11 @@ static void audio_player_refresh_ui_if_needed(lv_obj_t *fileLabel, lv_obj_t *sta
         g_ui_cache.bg_enabled = g_player.bg_enabled;
     }
 
+    if(crazyLabel != NULL && (need_force || g_ui_cache.crazy_enabled != g_player.crazy_enabled)) {
+        lv_label_set_text_fmt(crazyLabel, "Crazy: %s", g_player.crazy_enabled ? "ON" : "OFF");
+        g_ui_cache.crazy_enabled = g_player.crazy_enabled;
+    }
+
     g_ui_cache.valid = true;
 }
 
@@ -351,6 +383,58 @@ typedef struct {
     audio_player_menu_key_ctx_t key_ctx;
     bool exit_requested;
 } audio_player_ui_t;
+
+static bool audio_player_ui_is_valid(const audio_player_ui_t *ui) {
+    if(ui == NULL || ui->menu == NULL || ui->fileLabel == NULL || ui->stateLabel == NULL) {
+        return false;
+    }
+
+    return lv_obj_is_valid(ui->menu) && lv_obj_is_valid(ui->fileLabel) && lv_obj_is_valid(ui->stateLabel);
+}
+
+static void audio_player_set_crazy_enabled(bool enabled) {
+    g_player.crazy_enabled = enabled;
+    if(!enabled) {
+        g_player.crazy_leds_active = false;
+        for(uint8_t i = 0; i < RGB_BULBS; i++) {
+            nuttyDriverRGB.setRGBWithoutDisplay(i, 0, 0, 0);
+        }
+        nuttyDriverRGB.displayNow();
+    }
+}
+
+static void audio_player_update_crazy_leds(void) {
+    if(!g_player.crazy_enabled) {
+        return;
+    }
+
+    audio_player_state_t state = audio_player_get_state();
+    if(state != AUDIO_PLAYER_STATE_PLAYING) {
+        if(g_player.crazy_leds_active) {
+            audio_player_set_crazy_enabled(false);
+            g_player.crazy_enabled = true;
+        }
+        return;
+    }
+
+    const uint32_t now = xTaskGetTickCount();
+    if((now - g_player.crazy_tick) < pdMS_TO_TICKS(50)) {
+        return;
+    }
+    g_player.crazy_tick = now;
+
+    uint8_t level = g_player.crazy_level;
+    if(level < 8) {
+        level = 0;
+    }
+    uint8_t hue = (uint8_t)((now / pdMS_TO_TICKS(50)) % 255U);
+
+    for(uint8_t i = 0; i < RGB_BULBS; i++) {
+        nuttyDriverRGB.setHSVWithoutDisplay(i, (uint8_t)(hue + (i * 32U)), 255, level);
+    }
+    nuttyDriverRGB.displayNow();
+    g_player.crazy_leds_active = true;
+}
 
 static void audio_player_destroy_ui(audio_player_ui_t *ui) {
     if(ui == NULL) {
@@ -442,6 +526,7 @@ static void audio_player_init_ui(audio_player_ui_t *ui, audio_player_action_t *p
         ui->stateLabel,
         ui->action_labels[AUDIO_PLAYER_ACTION_TOGGLE_LOOP],
         ui->action_labels[AUDIO_PLAYER_ACTION_TOGGLE_BG],
+        ui->action_labels[AUDIO_PLAYER_ACTION_TOGGLE_CRAZY],
         true
     );
     NuttyDisplay_unlockLVGL();
@@ -579,6 +664,11 @@ static void nutty_main(void) {
             ui.exit_requested = false;
         }
 
+        if(!audio_player_ui_is_valid(&ui)) {
+            audio_player_destroy_ui(&ui);
+            audio_player_init_ui(&ui, &pending_action);
+        }
+
         if(pending_action != AUDIO_PLAYER_ACTION_COUNT) {
             switch(pending_action) {
                 case AUDIO_PLAYER_ACTION_SELECT_FILE: {
@@ -624,6 +714,9 @@ static void nutty_main(void) {
                 case AUDIO_PLAYER_ACTION_STOP: {
                     audio_player_stop_current(true);
                     NuttySystemMonitor_setSystemTrayTempText("!Stopped!", 12);
+                    audio_player_set_crazy_enabled(false);
+                    audio_player_destroy_ui(&ui);
+                    audio_player_init_ui(&ui, &pending_action);
                     break;
                 }
                 case AUDIO_PLAYER_ACTION_TOGGLE_LOOP: {
@@ -645,10 +738,20 @@ static void nutty_main(void) {
                     }
                     break;
                 }
+                case AUDIO_PLAYER_ACTION_TOGGLE_CRAZY: {
+                    audio_player_set_crazy_enabled(!g_player.crazy_enabled);
+                    if(g_player.crazy_enabled) {
+                        NuttySystemMonitor_setSystemTrayTempText("!Crazy ON!", 12);
+                    } else {
+                        NuttySystemMonitor_setSystemTrayTempText("!Crazy OFF!", 12);
+                    }
+                    break;
+                }
                 case AUDIO_PLAYER_ACTION_EXIT: {
                     if(!g_player.bg_enabled) {
                         audio_player_stop_current(true);
                     }
+                    audio_player_set_crazy_enabled(false);
                     exit_app = true;
                     break;
                 }
@@ -657,6 +760,7 @@ static void nutty_main(void) {
         }
 
         audio_player_handle_auto_loop();
+        audio_player_update_crazy_leds();
 
         if(ui.fileLabel != NULL && ui.stateLabel != NULL) {
             NuttyDisplay_lockLVGL();
@@ -665,6 +769,7 @@ static void nutty_main(void) {
                 ui.stateLabel,
                 ui.action_labels[AUDIO_PLAYER_ACTION_TOGGLE_LOOP],
                 ui.action_labels[AUDIO_PLAYER_ACTION_TOGGLE_BG],
+                ui.action_labels[AUDIO_PLAYER_ACTION_TOGGLE_CRAZY],
                 false
             );
             NuttyDisplay_unlockLVGL();

@@ -3,7 +3,20 @@
 ---
 # Hardware Changelog
 
-## Latest hardware revision: Rev. B (June-2025)
+
+## Latest hardware revision: Rev. C (May-2026)
+
+Compared to Rev. B (June-2025), NuttyBadge Revision C has the following changes:
+
+- Switched the main screen from LCD to OLED. SPI is still used, code changes are implemented to support both version of the NuttyBadge via a preprocessor marco.
+
+- The physical screen size of the OLED screen is smaller, but the resolution is kept the same (128x64). Compared to the original LCD screen, OLED screen provides way better contrast level, no ghosting, and supports way higher framerate, which could potentially enable better experiences for fast moving objects like gaming scenes.
+
+- As OLED is self-illuminating, there is no backlight. So now R11, R18 and Q2 are unpopulated. LCD_BL_PWM is unused and can be hacked for other purposes.
+
+- Fixed a minor issue in Rev. B where the bypass capacitor (C49 and C51) for Y1 (USB Hub CH334R [U10]'s 12MHz USB Crystal) is wrong. With a 12pF shunt capacitance of the crystal, there is no need to populate C49 and C51. Just relying on the internal capacitors in the CH334R is sufficient.
+
+---
 
 Compared to Rev. A (Initial Version of June-2024), NuttyBadge Revision B has the following changes:
 

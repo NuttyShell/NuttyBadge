@@ -6,7 +6,8 @@
 #include "esp_adc/adc_oneshot.h"
 
 
-#define NUTTYBADGE_REVC_OLED 0
+// Uncomment for Rev C OLED boards.
+// #define NUTTYBADGE_REVC_OLED 1
 /****
 G0 Strapping Pin (BOOT Mode), [I2C DATA]
 G1 [I2C SCL]

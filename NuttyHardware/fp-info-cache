@@ -1,4 +1,4 @@
-20957719498788154
+20923239336731706
 Audio_Module
 Reverb_BTDR-1H
 Digital Reverberation Unit, http://www.belton.co.kr/inc/downfile.php?seq=17&file=pdf (footprint from http://www.uk-electronic.de/PDF/BTDR-1.pdf)
@@ -50561,6 +50561,13 @@ Conn_uSDcard
 13
 10
 Custom
+D_SMA_Handsoldering-BigDiodeSilkscreen
+Diode SMA (DO-214AC) Handsoldering-BigDiodeSilkscreen
+Diode SMA (DO-214AC) Handsoldering-BigDiodeSilkscreen
+0
+2
+2
+Custom
 D_SOD-123-BigDiodeSilkscreen
 SOD-123
 SOD-123
@@ -50568,12 +50575,26 @@ SOD-123
 2
 2
 Custom
+ESP32-S3-WROOM-1
+ESP32-S3-WROOM-1 is a powerful, generic Wi-Fi + Bluetooth LE MCU modules that have Dual core CPU , a rich set of peripherals, provides acceleration for neural network computing and signal processing workloads. They are an ideal choice for a wide variety of application scenarios related to AI + Internet of Things (AIoT), such as wake word detection and speech commands recognition , face detection and recognition, smart home, smart appliance, smart control panel, smart speaker etc.
+esp32-s3
+0
+51
+41
+Custom
 GM12864T-5D
 
 
 0
 13
 13
+Custom
+LED_0805_2012Metric_Pad1.15x1.40mm_HandSolder-BigDiodeSilkscreen
+LED SMD 0805 (2012 Metric), square (rectangular) end terminal, IPC_7351 nominal, (Body size source: https://docs.google.com/spreadsheets/d/1BsfQQcO9C6DZCsRaXUlFlo91Tg2WpOkGARC1WS5S8t0/edit?usp=sharing), generated with kicad-footprint-generator
+LED handsolder
+0
+2
+2
 Custom
 LED_WS2812B_PLCC4_5.0x5.0mm_P3.2mm-TriangleSilkscreen
 https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf
@@ -50588,6 +50609,13 @@ ESP32-S2  ESP32  WIFI
 0
 32
 32
+Custom
+Module_Waveshare_ESP32-S3-DEV-KIT-N16R8
+
+ESP32-S2  ESP32  WIFI
+0
+48
+44
 Custom
 PinSocket_2x04_P2.54mm_Vertical_PinNumberFlipped
 Through hole straight socket strip, 2x04, 2.54mm pitch, double cols, pin flipped by h0p

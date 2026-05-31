@@ -18,10 +18,10 @@ static const char *TAG = "AudioPlayer";
 #define AUDIO_PLAYER_CHUNK_FRAMES 256U
 #define AUDIO_PLAYER_FADE_FRAMES 240U
 #define AUDIO_PLAYER_CRAZY_UPDATE_MS 30U
-#define AUDIO_PLAYER_VOLUME_MIN (-16)
+#define AUDIO_PLAYER_VOLUME_MIN 0
 #define AUDIO_PLAYER_VOLUME_MAX 16
 #define AUDIO_PLAYER_VOLUME_STEP 1
-#define AUDIO_PLAYER_VOLUME_DEFAULT 16
+#define AUDIO_PLAYER_VOLUME_DEFAULT 0
 
 typedef enum {
     AUDIO_PLAYER_ACTION_SELECT_FILE = 0,
@@ -132,13 +132,24 @@ static int8_t audio_player_clamp_volume(int8_t volume) {
     return volume;
 }
 
+static int8_t audio_player_to_driver_volume(int8_t ui_volume) {
+    int16_t driver = (int16_t)AUDIO_PLAYER_VOLUME_MAX - ((int16_t)ui_volume * 2);
+    if(driver > AUDIO_PLAYER_VOLUME_MAX) {
+        driver = AUDIO_PLAYER_VOLUME_MAX;
+    } else if(driver < -AUDIO_PLAYER_VOLUME_MAX) {
+        driver = -AUDIO_PLAYER_VOLUME_MAX;
+    }
+    return (int8_t)driver;
+}
+
 static void audio_player_apply_volume(int8_t volume, bool notify) {
     int8_t clamped = audio_player_clamp_volume(volume);
     if(clamped == g_player.volume) {
         return;
     }
 
-    esp_err_t err = pwm_audio_set_volume(clamped);
+    int8_t driver_volume = audio_player_to_driver_volume(clamped);
+    esp_err_t err = pwm_audio_set_volume(driver_volume);
     if(err != ESP_OK) {
         ESP_LOGW(TAG, "pwm_audio_set_volume failed: %s", esp_err_to_name(err));
         return;
@@ -384,7 +395,7 @@ static esp_err_t audio_player_backend_init(void) {
 
     g_player.backend_ready = true;
 
-    /* Crank the volume to max (+16 = double output) */
+    /* Crank the volume to max (0 = loudest in UI) */
     audio_player_apply_volume(AUDIO_PLAYER_VOLUME_DEFAULT, false);
 
     return ESP_OK;
@@ -555,14 +566,14 @@ static void audio_player_init_ui(audio_player_ui_t *ui, audio_player_action_t *p
         audio_player_set_action_label(label, (audio_player_action_t)i, state);
         lv_obj_set_width(label, lv_pct(100));
         lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
-        lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_LEFT, 0);
         ui->action_labels[i] = label;
         lv_menu_set_load_page_event(ui->menu, cont, NULL);
         ui->action_ctx[i].action = (audio_player_action_t)i;
         ui->action_ctx[i].pending_action = pending_action;
         lv_obj_add_event_cb(cont, audio_player_menu_action_cb, LV_EVENT_CLICKED, &ui->action_ctx[i]);
         lv_obj_set_style_outline_width(cont, 1, LV_STATE_FOCUS_KEY);
-        lv_obj_set_flex_align(cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_flex_align(cont, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_group_add_obj(ui->group, cont);
     }
 
@@ -753,11 +764,11 @@ static void nutty_main(void) {
                     break;
                 }
                 case AUDIO_PLAYER_ACTION_VOLUME_DOWN: {
-                    audio_player_adjust_volume(-AUDIO_PLAYER_VOLUME_STEP);
+                    audio_player_adjust_volume(AUDIO_PLAYER_VOLUME_STEP);
                     break;
                 }
                 case AUDIO_PLAYER_ACTION_VOLUME_UP: {
-                    audio_player_adjust_volume(AUDIO_PLAYER_VOLUME_STEP);
+                    audio_player_adjust_volume(-AUDIO_PLAYER_VOLUME_STEP);
                     break;
                 }
                 case AUDIO_PLAYER_ACTION_TOGGLE_LOOP: {

@@ -65,14 +65,16 @@ static void nutty_main(void) {
     }else{
         // Launch File Manager to select IRDB
         NuttySystemMonitor_setSystemTrayTempText("!Please select a file!", 30);
-        char *ImageFilePath = malloc(1024);
+        size_t imageFilePathSize = 1024;
+        char *ImageFilePath = malloc(imageFilePathSize);
         assert(ImageFilePath != NULL);
-        memset(ImageFilePath, 0x00, 1024);
+        memset(ImageFilePath, 0x00, imageFilePathSize);
         strcat(ImageFilePath, SDCARD_MOUNT_POINT"/");
-        void *arg_list[2];
+        void *arg_list[3];
         arg_list[0] = xTaskGetCurrentTaskHandle();
         arg_list[1] = ImageFilePath;
-        NuttyApps_launchParamedAppByName("File Manager", 2, arg_list);
+        arg_list[2] = &imageFilePathSize;
+        NuttyApps_launchParamedAppByName("File Manager", 3, arg_list);
 
         xTaskNotifyWait(0x00, ULONG_MAX, NULL, portMAX_DELAY);
         ESP_LOGI(TAG, "Selection Completed: %s", ImageFilePath);

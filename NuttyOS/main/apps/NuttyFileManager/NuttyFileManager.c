@@ -7,7 +7,7 @@ static void lvgl_on_click_set_path(lv_event_t * event) {
     *((char **)event->user_data) = entry;
 }
 
-static void generate_file_menu(char *path, bool ret_when_sel_file) {
+static void generate_file_menu(char *path, size_t path_buf_size, bool ret_when_sel_file) {
     char *selectedFileOrDir = NULL;
 
     if(path[0] == 0x00) return;
@@ -148,8 +148,15 @@ static void generate_file_menu(char *path, bool ret_when_sel_file) {
     bool isDir=false;
     if(selectedFileOrDir[1] == 'D' && selectedFileOrDir[2] == 'I' && selectedFileOrDir[3] == 'R') { // [DIR]
         isDir = true;
-        strlcat(path, selectedFileOrDirName, 512);
-        strlcat(path, "/", 512);
+        size_t cur_len = strlen(path);
+        size_t name_len = strlen(selectedFileOrDirName);
+        if (cur_len + name_len + 2 > path_buf_size) {
+            ESP_LOGE(TAG, "Path too long, rejecting: %s + %s", path, selectedFileOrDirName);
+            path[0] = 0x00;
+        } else {
+            strlcat(path, selectedFileOrDirName, path_buf_size);
+            strlcat(path, "/", path_buf_size);
+        }
     }
 
     if(selectedFileOrDir[0] == '.' && selectedFileOrDir[1] == '.') { // ..
@@ -165,7 +172,14 @@ static void generate_file_menu(char *path, bool ret_when_sel_file) {
     }
     
     if(!isDir && !isExit && ret_when_sel_file) {
-        strlcat(path, selectedFileOrDirName, 512);
+        size_t cur_len = strlen(path);
+        size_t name_len = strlen(selectedFileOrDirName);
+        if (cur_len + name_len + 1 > path_buf_size) {
+            ESP_LOGE(TAG, "Path too long, rejecting: %s + %s", path, selectedFileOrDirName);
+            path[0] = 0x00;
+        } else {
+            strlcat(path, selectedFileOrDirName, path_buf_size);
+        }
     }
    
     NuttyDisplay_lockLVGL();
@@ -179,7 +193,7 @@ static void generate_file_menu(char *path, bool ret_when_sel_file) {
     
     ESP_LOGI(TAG, "Selected: %s\n", path);
     if(!isDir && ret_when_sel_file) return;
-    generate_file_menu(path, ret_when_sel_file);
+    generate_file_menu(path, path_buf_size, ret_when_sel_file);
 }
 
 static void nutty_main(uint8_t argc, void **argv) {
@@ -192,12 +206,13 @@ static void nutty_main(uint8_t argc, void **argv) {
         heap_caps_print_heap_info(MALLOC_CAP_DEFAULT);
         char tmpFilePath[512] = {0};
         strlcpy(tmpFilePath, SDCARD_MOUNT_POINT"/", sizeof(tmpFilePath));
-        generate_file_menu(tmpFilePath, false);
+        generate_file_menu(tmpFilePath, sizeof(tmpFilePath), false);
         printf("File_menu done\n");
         heap_caps_print_heap_info(MALLOC_CAP_DEFAULT);
         NuttyApps_launchAppByIndex(0);
-    }else if(argc == 2) {
-        generate_file_menu((char *)argv[1], true);
+    }else if(argc == 3) {
+        size_t path_buf_size = *((size_t *)argv[2]);
+        generate_file_menu((char *)argv[1], path_buf_size, true);
         xTaskNotify((TaskHandle_t)argv[0], 0, eNoAction);
     }else{
         // Invalid argument count

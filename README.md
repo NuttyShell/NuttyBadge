@@ -1,4 +1,4 @@
-# NuttyBadge_Paco
+# NuttyBadge
 NuttyBadge: A NuttyShell crafted security and hardware multi-tool. Open-sourced Hardware and Software.
 
 ## Hardware

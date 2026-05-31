@@ -148,8 +148,8 @@ static void generate_file_menu(char *path, bool ret_when_sel_file) {
     bool isDir=false;
     if(selectedFileOrDir[1] == 'D' && selectedFileOrDir[2] == 'I' && selectedFileOrDir[3] == 'R') { // [DIR]
         isDir = true;
-        strcat(path, selectedFileOrDirName);
-        strcat(path, "/");
+        strlcat(path, selectedFileOrDirName, 512);
+        strlcat(path, "/", 512);
     }
 
     if(selectedFileOrDir[0] == '.' && selectedFileOrDir[1] == '.') { // ..
@@ -165,7 +165,7 @@ static void generate_file_menu(char *path, bool ret_when_sel_file) {
     }
     
     if(!isDir && !isExit && ret_when_sel_file) {
-        strcat(path, selectedFileOrDirName);
+        strlcat(path, selectedFileOrDirName, 512);
     }
    
     NuttyDisplay_lockLVGL();
@@ -191,7 +191,7 @@ static void nutty_main(uint8_t argc, void **argv) {
         printf("File_menu start\n");
         heap_caps_print_heap_info(MALLOC_CAP_DEFAULT);
         char tmpFilePath[512] = {0};
-        strcpy(tmpFilePath, SDCARD_MOUNT_POINT"/");
+        strlcpy(tmpFilePath, SDCARD_MOUNT_POINT"/", sizeof(tmpFilePath));
         generate_file_menu(tmpFilePath, false);
         printf("File_menu done\n");
         heap_caps_print_heap_info(MALLOC_CAP_DEFAULT);

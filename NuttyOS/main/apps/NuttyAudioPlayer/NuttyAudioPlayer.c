@@ -15,10 +15,19 @@ static const char *TAG = "AudioPlayer";
 
 #define AUDIO_PLAYER_MAX_PATH 1024
 #define AUDIO_PLAYER_ACTION_COUNT 6
+#define AUDIO_PLAYER_CHUNK_FRAMES 256U
+#define AUDIO_PLAYER_FADE_FRAMES 240U
+#define AUDIO_PLAYER_CRAZY_UPDATE_MS 30U
+#define AUDIO_PLAYER_VOLUME_MIN (-16)
+#define AUDIO_PLAYER_VOLUME_MAX 16
+#define AUDIO_PLAYER_VOLUME_STEP 1
+#define AUDIO_PLAYER_VOLUME_DEFAULT 16
 
 typedef enum {
     AUDIO_PLAYER_ACTION_SELECT_FILE = 0,
     AUDIO_PLAYER_ACTION_PLAY_PAUSE,
+    AUDIO_PLAYER_ACTION_VOLUME_DOWN,
+    AUDIO_PLAYER_ACTION_VOLUME_UP,
     AUDIO_PLAYER_ACTION_TOGGLE_LOOP,
     AUDIO_PLAYER_ACTION_TOGGLE_BG,
     AUDIO_PLAYER_ACTION_TOGGLE_CRAZY,
@@ -42,6 +51,7 @@ typedef struct {
     uint32_t fade_frames_remaining;
     int32_t dc_x1;
     int32_t dc_y1;
+    int8_t volume;
     char current_path[AUDIO_PLAYER_MAX_PATH];
 } nutty_audio_player_state_t;
 
@@ -59,12 +69,26 @@ static nutty_audio_player_state_t g_player = {
     .crazy_tick = 0,
     .input_channels = 1,
     .sample_rate = 48000,
+    .volume = AUDIO_PLAYER_VOLUME_DEFAULT,
     .current_path = {0},
+};
+
+static const char *g_action_text[AUDIO_PLAYER_ACTION_COUNT] = {
+    [AUDIO_PLAYER_ACTION_SELECT_FILE] = "Select File",
+    [AUDIO_PLAYER_ACTION_PLAY_PAUSE] = "Play / Pause",
+    [AUDIO_PLAYER_ACTION_VOLUME_DOWN] = "Vol -",
+    [AUDIO_PLAYER_ACTION_VOLUME_UP] = "Vol +",
+    [AUDIO_PLAYER_ACTION_TOGGLE_LOOP] = "Loop",
+    [AUDIO_PLAYER_ACTION_TOGGLE_BG] = "BG",
+    [AUDIO_PLAYER_ACTION_TOGGLE_CRAZY] = "Crazy",
+    [AUDIO_PLAYER_ACTION_EXIT] = "Exit",
 };
 
 static const char *g_action_icons[AUDIO_PLAYER_ACTION_COUNT] = {
     [AUDIO_PLAYER_ACTION_SELECT_FILE] = LV_SYMBOL_DIRECTORY,
     [AUDIO_PLAYER_ACTION_PLAY_PAUSE] = LV_SYMBOL_PLAY,
+    [AUDIO_PLAYER_ACTION_VOLUME_DOWN] = LV_SYMBOL_MINUS,
+    [AUDIO_PLAYER_ACTION_VOLUME_UP] = LV_SYMBOL_PLUS,
     [AUDIO_PLAYER_ACTION_TOGGLE_LOOP] = LV_SYMBOL_REFRESH,
     [AUDIO_PLAYER_ACTION_TOGGLE_BG] = LV_SYMBOL_AUDIO,
     [AUDIO_PLAYER_ACTION_TOGGLE_CRAZY] = LV_SYMBOL_BELL,
@@ -96,6 +120,40 @@ static void audio_player_menu_key_cb(lv_event_t *event) {
     if(lv_event_get_key(event) == LV_KEY_ESC) {
         *ctx->exit_requested = true;
     }
+}
+
+static int8_t audio_player_clamp_volume(int8_t volume) {
+    if(volume < AUDIO_PLAYER_VOLUME_MIN) {
+        return AUDIO_PLAYER_VOLUME_MIN;
+    }
+    if(volume > AUDIO_PLAYER_VOLUME_MAX) {
+        return AUDIO_PLAYER_VOLUME_MAX;
+    }
+    return volume;
+}
+
+static void audio_player_apply_volume(int8_t volume, bool notify) {
+    int8_t clamped = audio_player_clamp_volume(volume);
+    if(clamped == g_player.volume) {
+        return;
+    }
+
+    esp_err_t err = pwm_audio_set_volume(clamped);
+    if(err != ESP_OK) {
+        ESP_LOGW(TAG, "pwm_audio_set_volume failed: %s", esp_err_to_name(err));
+        return;
+    }
+
+    g_player.volume = clamped;
+    if(notify) {
+        char msg[24];
+        snprintf(msg, sizeof(msg), "!Volume %d!", (int)g_player.volume);
+        NuttySystemMonitor_setSystemTrayTempText(msg, 12);
+    }
+}
+
+static void audio_player_adjust_volume(int8_t delta) {
+    audio_player_apply_volume((int8_t)(g_player.volume + delta), true);
 }
 
 static bool audio_player_is_mp3_path(const char *path) {
@@ -188,8 +246,8 @@ static esp_err_t audio_player_write_pcm(void *audio_buffer, size_t len, size_t *
 
     while(frames_processed < input_frames) {
         size_t chunk_frames = input_frames - frames_processed;
-        if(chunk_frames > 256U) {
-            chunk_frames = 256U;
+        if(chunk_frames > AUDIO_PLAYER_CHUNK_FRAMES) {
+            chunk_frames = AUDIO_PLAYER_CHUNK_FRAMES;
         }
 
         size_t chunk_output_len = chunk_frames;
@@ -197,10 +255,7 @@ static esp_err_t audio_player_write_pcm(void *audio_buffer, size_t len, size_t *
             chunk_output_len += (4U - (chunk_output_len & 0x03U));
         }
 
-        uint8_t *converted = malloc(chunk_output_len);
-        if(converted == NULL) {
-            return ESP_ERR_NO_MEM;
-        }
+        uint8_t converted[AUDIO_PLAYER_CHUNK_FRAMES];
 
         uint32_t level_sum = 0;
         for(size_t i = 0; i < chunk_frames; i++) {
@@ -231,7 +286,7 @@ static esp_err_t audio_player_write_pcm(void *audio_buffer, size_t len, size_t *
             /* 3) Fade-in on first frames to kill startup pop */
             if(g_player.fade_frames_remaining > 0) {
                 uint32_t fade = g_player.fade_frames_remaining;
-                mono = (int32_t)(((int64_t)mono * (int64_t)(240U - fade)) / 240U);
+                mono = (int32_t)(((int64_t)mono * (int64_t)(AUDIO_PLAYER_FADE_FRAMES - fade)) / AUDIO_PLAYER_FADE_FRAMES);
                 g_player.fade_frames_remaining--;
             }
 
@@ -261,7 +316,7 @@ static esp_err_t audio_player_write_pcm(void *audio_buffer, size_t len, size_t *
 
             /* Drive LEDs from audio amplitude — brightness follows the beat */
             const uint32_t now = xTaskGetTickCount();
-            if((now - g_player.crazy_tick) >= pdMS_TO_TICKS(30)) {
+            if((now - g_player.crazy_tick) >= pdMS_TO_TICKS(AUDIO_PLAYER_CRAZY_UPDATE_MS)) {
                 g_player.crazy_tick = now;
                 uint8_t level = g_player.crazy_level;
                 if(level < 3) { level = 0; }
@@ -280,7 +335,6 @@ static esp_err_t audio_player_write_pcm(void *audio_buffer, size_t len, size_t *
 
         size_t native_written = 0;
         esp_err_t err = pwm_audio_write(converted, chunk_output_len, &native_written, pdMS_TO_TICKS(timeout_ms));
-        free(converted);
 
         if(err != ESP_OK) {
             return err;
@@ -331,10 +385,7 @@ static esp_err_t audio_player_backend_init(void) {
     g_player.backend_ready = true;
 
     /* Crank the volume to max (+16 = double output) */
-    esp_err_t vol_err = pwm_audio_set_volume(16);
-    if(vol_err != ESP_OK) {
-        ESP_LOGW(TAG, "pwm_audio_set_volume failed: %s", esp_err_to_name(vol_err));
-    }
+    audio_player_apply_volume(AUDIO_PLAYER_VOLUME_DEFAULT, false);
 
     return ESP_OK;
 }
@@ -391,6 +442,14 @@ static const char *audio_player_get_action_icon(audio_player_action_t action, au
     return LV_SYMBOL_SETTINGS;
 }
 
+static void audio_player_set_action_label(lv_obj_t *label, audio_player_action_t action, audio_player_state_t state) {
+    if(label == NULL || action >= AUDIO_PLAYER_ACTION_COUNT) {
+        return;
+    }
+
+    lv_label_set_text_fmt(label, "%s %s", audio_player_get_action_icon(action, state), g_action_text[action]);
+}
+
 static void audio_player_update_action_icons(audio_player_ui_t *ui, bool force) {
     if(ui == NULL) {
         return;
@@ -399,9 +458,7 @@ static void audio_player_update_action_icons(audio_player_ui_t *ui, bool force) 
     audio_player_state_t state = audio_player_get_state();
     if(force || ui->last_state != state) {
         lv_obj_t *label = ui->action_labels[AUDIO_PLAYER_ACTION_PLAY_PAUSE];
-        if(label != NULL) {
-            lv_label_set_text(label, audio_player_get_action_icon(AUDIO_PLAYER_ACTION_PLAY_PAUSE, state));
-        }
+        audio_player_set_action_label(label, AUDIO_PLAYER_ACTION_PLAY_PAUSE, state);
         ui->last_state = state;
     }
 }
@@ -475,7 +532,7 @@ static void audio_player_init_ui(audio_player_ui_t *ui, audio_player_action_t *p
     lv_indev_set_group(indev, ui->group);
 
     lv_style_init(&ui->menu_style);
-    lv_style_set_text_font(&ui->menu_style, &lv_font_montserrat_16);
+    lv_style_set_text_font(&ui->menu_style, &lv_font_montserrat_12);
 
     lv_obj_t *drawArea = NuttyDisplay_getUserAppArea();
 
@@ -495,7 +552,7 @@ static void audio_player_init_ui(audio_player_ui_t *ui, audio_player_action_t *p
         lv_obj_t *cont = lv_menu_cont_create(mainPage);
         lv_obj_t *label = lv_label_create(cont);
         lv_obj_add_style(label, &ui->menu_style, LV_PART_MAIN);
-        lv_label_set_text(label, audio_player_get_action_icon((audio_player_action_t)i, state));
+        audio_player_set_action_label(label, (audio_player_action_t)i, state);
         lv_obj_set_width(label, lv_pct(100));
         lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
         lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
@@ -577,7 +634,7 @@ static esp_err_t audio_player_start_selected_file(void) {
     g_player.auto_loop_armed = true;
     g_player.dc_x1 = 0;
     g_player.dc_y1 = 0;
-    g_player.fade_frames_remaining = 240; /* ~5ms fade-in at 48kHz */
+    g_player.fade_frames_remaining = AUDIO_PLAYER_FADE_FRAMES; /* ~5ms fade-in at 48kHz */
 
     NuttySystemMonitor_setSystemTrayTempText("!Playing...", 12);
     return ESP_OK;
@@ -693,6 +750,14 @@ static void nutty_main(void) {
                             g_player.auto_loop_armed = false;
                         }
                     }
+                    break;
+                }
+                case AUDIO_PLAYER_ACTION_VOLUME_DOWN: {
+                    audio_player_adjust_volume(-AUDIO_PLAYER_VOLUME_STEP);
+                    break;
+                }
+                case AUDIO_PLAYER_ACTION_VOLUME_UP: {
+                    audio_player_adjust_volume(AUDIO_PLAYER_VOLUME_STEP);
                     break;
                 }
                 case AUDIO_PLAYER_ACTION_TOGGLE_LOOP: {

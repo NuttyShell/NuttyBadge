@@ -764,11 +764,11 @@ static void nutty_main(void) {
                     break;
                 }
                 case AUDIO_PLAYER_ACTION_VOLUME_DOWN: {
-                    audio_player_adjust_volume(AUDIO_PLAYER_VOLUME_STEP);
+                    audio_player_adjust_volume(-AUDIO_PLAYER_VOLUME_STEP);
                     break;
                 }
                 case AUDIO_PLAYER_ACTION_VOLUME_UP: {
-                    audio_player_adjust_volume(-AUDIO_PLAYER_VOLUME_STEP);
+                    audio_player_adjust_volume(AUDIO_PLAYER_VOLUME_STEP);
                     break;
                 }
                 case AUDIO_PLAYER_ACTION_TOGGLE_LOOP: {

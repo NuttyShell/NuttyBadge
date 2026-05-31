@@ -1,4 +1,5 @@
 #include "NuttyShooter.h"
+#include "esp_mac.h"
 
 // A tag for logging messages to the console, useful for debugging.
 static const char *TAG = "NuttyShooter";
@@ -180,9 +181,10 @@ static void run_game_session(void) {
     gameState.last_hit_timestamp = esp_timer_get_time();
     gameState.invincibility_end_timestamp = 0;
     gameState.game_over = false;
-    srand(esp_timer_get_time());
-    gameState.player_ir_cmd = rand() & 0xFFFF;
-    ESP_LOGI(TAG, "Player IR Command set to: 0x%04X", gameState.player_ir_cmd);
+    uint8_t mac[6];
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    gameState.player_ir_cmd = (mac[3] << 8) | (mac[4] ^ mac[5]);
+    ESP_LOGI(TAG, "Player IR Command (MAC-derived): 0x%04X", gameState.player_ir_cmd);
 
     NuttyIR_Init();
     NuttyRGB_Init();

@@ -3,4 +3,6 @@
   (lib (name "LCD_Module")(type "KiCad")(uri "${KIPRJMOD}/custom_symbols/12864_LCD_Display.kicad_sym")(options "")(descr ""))
   (lib (name "MicroSD_Slot")(type "KiCad")(uri "${KIPRJMOD}/custom_symbols/MicroSD_Slot.kicad_sym")(options "")(descr ""))
   (lib (name "ESP+3V3")(type "KiCad")(uri "${KIPRJMOD}/custom_symbols/ESP+3V3.kicad_sym")(options "")(descr ""))
+  (lib (name "LDO_Regulators")(type "KiCad")(uri "${KIPRJMOD}/custom_symbols/LDO_Regulators.kicad_sym")(options "")(descr ""))
+  (lib (name "WCH_Peripheral")(type "KiCad")(uri "${KIPRJMOD}/custom_symbols/wch_mcu_peripheral.kicad_sym")(options "")(descr ""))
 )

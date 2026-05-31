@@ -91,8 +91,8 @@
   (fp_line (start -1.955 22.095) (end -1.955 -9.782) (layer "F.Fab") (width 0.1) (tstamp 39507bd2-c72b-4ee3-bdc2-63d6ddf67d06))
   (fp_line (start -1.955 -9.782) (end 56.261 -9.778) (layer "F.Fab") (width 0.1) (tstamp a6417ba1-6ad6-4e7e-81a8-24a4d9c9ec4e))
   (fp_line (start -1.955 22.095) (end 56.261 22.099) (layer "F.Fab") (width 0.1) (tstamp c09c23a5-4c48-4cca-b703-4692286d7603))
-  (pad "" np_thru_hole oval (at 27.165 -1.524) (size 3.3 4) (drill oval 3.3 4) (layers F&B.Cu *.Mask) (tstamp 41c09925-e065-42c1-9741-4430ce9762b5))
-  (pad "" np_thru_hole oval (at 27.165 14.99) (size 3.3 4) (drill oval 3.3 4) (layers F&B.Cu *.Mask) (tstamp 49ef0bf2-86c3-4d96-8426-3d0f7769c7de))
+  (pad "" np_thru_hole oval (at 27.15 -1.7) (size 3.3 4.2) (drill oval 3.3 4.2) (layers F&B.Cu *.Mask) (tstamp 41c09925-e065-42c1-9741-4430ce9762b5))
+  (pad "" np_thru_hole oval (at 27.15 14.95) (size 3.3 4.2) (drill oval 3.3 4.2) (layers F&B.Cu *.Mask) (tstamp 49ef0bf2-86c3-4d96-8426-3d0f7769c7de))
   (pad "1" thru_hole rect (at 0 0) (size 2 2) (drill 1.02) (layers *.Cu *.Mask) (tstamp 44b2f5c5-cdf4-418c-a278-45882200ebf3))
   (pad "2" thru_hole circle (at 0 14.99) (size 2 2) (drill 1.02) (layers *.Cu *.Mask) (tstamp 6a62d8ab-cbab-4999-8aeb-e888fa03f47d))
   (model "${KICAD6_3DMODEL_DIR}/Battery.3dshapes/BatteryHolder_Keystone_2462_2xAA.wrl"

@@ -1,9 +1,93 @@
 #include "NuttySnake.h"
 
+#include "services/NuttyStorage/NuttyStorage.h"
+
 static const char *TAG = "Snake";
+
+/* TRUE_COLOR pixel buffer: 1 byte/pixel, 0=visible, 1=hidden (active-low LCD) */
+static uint8_t snake_px[128 * 64];
+static lv_img_dsc_t snake_img_dsc;
+static lv_obj_t *snake_img_obj = NULL;
+
+#define GRID_X_MIN 1
+#define GRID_X_MAX 62
+#define GRID_Y_MIN 1
+#define GRID_Y_MAX 27
+
+static inline void px_set(uint8_t x, uint8_t y) { snake_px[y * 128 + x] = 0; }
+static inline void px_clear(uint8_t x, uint8_t y) { snake_px[y * 128 + x] = 1; }
+
+static inline void draw_block(uint8_t gx, uint8_t gy, bool on) {
+    uint8_t px = gx * 2;
+    uint8_t py = gy * 2;
+    if (on) {
+        px_set(px, py); px_set(px+1, py);
+        px_set(px, py+1); px_set(px+1, py+1);
+    } else {
+        px_clear(px, py); px_clear(px+1, py);
+        px_clear(px, py+1); px_clear(px+1, py+1);
+    }
+}
+
+/* Body pattern: .X / X. (01\10) */
+static inline void draw_body(uint8_t gx, uint8_t gy) {
+    uint8_t px = gx * 2;
+    uint8_t py = gy * 2;
+    px_clear(px, py); px_set(px+1, py);
+    px_set(px, py+1); px_clear(px+1, py+1);
+}
+
+/* Wall pattern: X. / .X (10\01) */
+static inline void draw_wall_block(uint8_t bx, uint8_t by) {
+    px_set(bx, by); px_clear(bx+1, by);
+    px_clear(bx, by+1); px_set(bx+1, by+1);
+}
+
+/* Bitmap collision map: 224 bytes */
+static uint8_t snake_map[28][8];
+static inline bool map_get(uint8_t y, uint8_t x) { return (snake_map[y][x >> 3] >> (x & 7)) & 1; }
+static inline void map_set(uint8_t y, uint8_t x) { snake_map[y][x >> 3] |= (1 << (x & 7)); }
+static inline void map_clr(uint8_t y, uint8_t x) { snake_map[y][x >> 3] &= ~(1 << (x & 7)); }
+
+static void draw_wall(void) {
+    for (uint8_t x = 0; x < 128; x += 2) draw_wall_block(x, 0);
+    for (uint8_t x = 0; x < 128; x += 2) draw_wall_block(x, 56);
+    for (uint8_t y = 2; y < 56; y += 2) draw_wall_block(0, y);
+    for (uint8_t y = 2; y < 56; y += 2) draw_wall_block(126, y);
+}
+
+/* ---- Scoreboard: top 5 scores persisted via NVS blob ---- */
+#define SCOREBOARD_KEY "snake_scores"
+#define SCOREBOARD_SIZE 5
+
+static void scoreboard_load(uint16_t *scores) {
+    uint16_t defaults[SCOREBOARD_SIZE] = {0};
+    NuttyStorage_getBlobKV(SCOREBOARD_KEY, scores, SCOREBOARD_SIZE * sizeof(uint16_t), defaults, SCOREBOARD_SIZE * sizeof(uint16_t));
+}
+
+static void scoreboard_save(uint16_t *scores) {
+    NuttyStorge_setBlobKV(SCOREBOARD_KEY, scores, SCOREBOARD_SIZE * sizeof(uint16_t));
+}
+
+/* Insert score into top 5 (descending). Returns rank 0-4 if qualified, -1 if not */
+static int8_t scoreboard_insert(uint16_t *scores, uint16_t score) {
+    for (uint8_t i = 0; i < SCOREBOARD_SIZE; i++) {
+        if (score > scores[i]) {
+            /* Shift lower scores down */
+            for (int8_t j = SCOREBOARD_SIZE - 1; j > i; j--) {
+                scores[j] = scores[j - 1];
+            }
+            scores[i] = score;
+            scoreboard_save(scores);
+            return (int8_t)i;
+        }
+    }
+    return -1;
+}
 
 static const char *menuChoices[] = {
     "Start",
+    "Scoreboard",
     "Edit Difficulty",
     "Tutorial",
     "< Back"
@@ -11,10 +95,11 @@ static const char *menuChoices[] = {
 
 static _NuttySnakeConfig snake_config = {
     .difficulty = 5,
-    .speed = 250
+    .speed = 140
 };
 
 static _NuttySnakeQueue* snake;
+static _NuttySnakeQueue* snake_tail;
 
 static void lvgl_menu_on_click_event_handler(lv_event_t * event) {
     char *item_text = lv_label_get_text(lv_obj_get_child(event->target, 0));
@@ -37,11 +122,11 @@ static lv_obj_t *new_label(char *text, lv_obj_t* drawArea, lv_style_t* style, lv
     return lbl;
 }
 
-static int update_difficulty(lv_obj_t* lbl_m_s, uint8_t difficulty){
-    difficulty = (difficulty + 10) % 10;
+static int update_difficulty(lv_obj_t* lbl_m_s, int difficulty){
+    difficulty = ((difficulty % 10) + 10) % 10;
     ESP_LOGI(TAG, "Current: %d", difficulty);
     NuttyDisplay_lockLVGL();
-    lv_label_set_text_fmt(lbl_m_s, "%d", difficulty % 10);
+    lv_label_set_text_fmt(lbl_m_s, "%d", difficulty);
     NuttyDisplay_unlockLVGL();
     return difficulty;
 }
@@ -54,53 +139,126 @@ static int64_t min(int64_t a, int64_t b){
 
 static void set_difficulty(uint8_t difficulty){
     snake_config.difficulty = difficulty;
-    snake_config.speed = 500 - min(difficulty * 50, 450);
+    snake_config.speed = 250 - difficulty * 22;
     ESP_LOGI(TAG, "Change difficulty->%d speed->%d", snake_config.difficulty, snake_config.speed);
+}
+
+static void show_scoreboard(void) {
+    lv_style_t lbl_font_nano;
+    lv_style_init(&lbl_font_nano);
+    lv_style_set_text_font(&lbl_font_nano, &cg_pixel_4x5_mono);
+
+    uint16_t scores[SCOREBOARD_SIZE];
+    scoreboard_load(scores);
+
+    lv_obj_t *drawArea = NuttyDisplay_getUserAppArea();
+    NuttyDisplay_lockLVGL();
+    new_label("Best Scores", drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 4);
+    char line[24];
+    for (uint8_t i = 0; i < SCOREBOARD_SIZE; i++) {
+        snprintf(line, sizeof(line), "%d.  %d", i + 1, scores[i]);
+        new_label(line, drawArea, &lbl_font_nano, LV_ALIGN_TOP_MID, 0, 14 + i * 9);
+    }
+    NuttyDisplay_unlockLVGL();
+
+    NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(10));
+        if (NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_ALL)) break;
+    }
+    lv_style_reset(&lbl_font_nano);
+    NuttyDisplay_clearUserAppArea();
 }
 
 
 static void snake_start(){
-    ESP_LOGI(TAG, "Game Start with speed: %d with count %d", snake_config.speed, snake_config.speed/5);
+    ESP_LOGI(TAG, "Game Start speed:%d", snake_config.speed);
     lv_obj_t *drawArea = NuttyDisplay_getUserAppArea();
     NuttySystemMonitor_setSystemTrayTempText("!!Game Started!!", 30);
-    lv_img_dsc_t background_img = NuttyDisplay_getPNGDsc(background_png, 248);
-    lv_img_dsc_t head_img = NuttyDisplay_getPNGDsc(head_png, 68);
-    lv_img_dsc_t tail_img = NuttyDisplay_getPNGDsc(tail_png, 75);
+
+    /* Init pixel buffer: fill hidden (1), draw wall borders */
+    memset(snake_px, 1, sizeof(snake_px));
+    draw_wall();
+
+    /* Setup image descriptor */
+    snake_img_dsc.header.cf = LV_IMG_CF_TRUE_COLOR;
+    snake_img_dsc.header.always_zero = 0;
+    snake_img_dsc.header.reserved = 0;
+    snake_img_dsc.header.w = 128;
+    snake_img_dsc.header.h = 64;
+    snake_img_dsc.data_size = 128 * 64;
+    snake_img_dsc.data = snake_px;
 
     NuttyDisplay_lockLVGL();
-
-    NuttyDisplay_showPNGWithWHXY(&background_img, drawArea, 0, 1);
-    lv_obj_t *tail = NuttyDisplay_showPNGWithWHXY(&tail_img, drawArea, 62, 33);
-    lv_obj_t *head = NuttyDisplay_showPNGWithWHXY(&head_img, drawArea, 62, 31);
-    srand(esp_timer_get_time());
-    uint8_t foodX = rand() % 61 + 1, foodY = rand() % 27 + 1;
-    lv_obj_t *food = NuttyDisplay_showPNGWithWHXY(&head_img, drawArea, foodX * 2, foodY * 2 + 1);
+    snake_img_obj = lv_img_create(drawArea);
+    lv_img_set_src(snake_img_obj, &snake_img_dsc);
+    lv_obj_align(snake_img_obj, LV_ALIGN_TOP_LEFT, 0, 0);
     NuttyDisplay_unlockLVGL();
 
-    snake = malloc(sizeof(_NuttySnakeQueue));
-    snake->current = tail;
-    snake->next = NULL;
-    snake->X = 31;
-    snake->Y = 15;
+    /* Init collision map */
+    memset(snake_map, 0, sizeof(snake_map));
 
-    uint8_t counter = 0, nowX = 31, nowY = 15, score = 0;
+    /* Initial snake: 1 body node at (31,16), head at (31,15) */
+    snake = malloc(sizeof(_NuttySnakeQueue));
+    if (!snake) {
+        NuttySystemMonitor_setSystemTrayTempText("!!OOM!!", 30);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        NuttyDisplay_lockLVGL();
+        if (snake_img_obj) { lv_obj_del(snake_img_obj); snake_img_obj = NULL; }
+        NuttyDisplay_unlockLVGL();
+        NuttyDisplay_clearUserAppArea();
+        return;
+    }
+    snake->X = 30;
+    snake->Y = 16;
+    snake->next = NULL;
+    snake_tail = snake;
+    map_set(16, 30);
+
+    uint8_t nowX = 30, nowY = 15;
+    map_set(15, 30);
+
+    draw_block(30, 15, true);  /* head */
+    draw_body(30, 16);
+
+    srand(esp_timer_get_time());
+    uint8_t foodX, foodY;
+    do {
+        foodX = rand() % 62 + 1;
+        foodY = rand() % 27 + 1;
+    } while (map_get(foodY, foodX) || (foodX == nowX && foodY == nowY));
+    draw_block(foodX, foodY, true);
+
+    NuttyDisplay_lockLVGL();
+    lv_obj_invalidate(snake_img_obj);
+    NuttyDisplay_unlockLVGL();
+
+    uint8_t counter = 0;
+    uint16_t score = 0;
     enum _NuttySnakeDIRECTION nextStep = UP;
-    bool ticking = true, snake_map[28][63] = {0,};
-    snake_map[nowY][nowX] = true;
-    snake_map[nowY + 1][nowX] = true;
+    enum _NuttySnakeDIRECTION lastDir = UP;
+    bool ticking = true;
+
     NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
     while(true) {
-        if(ticking){
-            counter++;
-            if(counter == snake_config.speed / 5){
-                counter = 0;
-                _NuttySnakeQueue *tmp, *now = snake;
-                while(now->next != NULL){
-                    now = now->next;
-                }
-                now->next = malloc(sizeof(_NuttySnakeQueue));
+        /* Responsive input: prevent reversal of both queued and last direction */
+        if(ticking) {
+            if(nextStep != DOWN && lastDir != DOWN && NuttyInput_isOneOfTheButtonsCurrentlyPressed(NUTTYINPUT_BTN_UP)){
+                nextStep = UP;
+            }else if(nextStep != UP && lastDir != UP && NuttyInput_isOneOfTheButtonsCurrentlyPressed(NUTTYINPUT_BTN_DOWN)){
+                nextStep = DOWN;
+            }else if(nextStep != RIGHT && lastDir != RIGHT && NuttyInput_isOneOfTheButtonsCurrentlyPressed(NUTTYINPUT_BTN_LEFT)){
+                nextStep = LEFT;
+            }else if(nextStep != LEFT && lastDir != LEFT && NuttyInput_isOneOfTheButtonsCurrentlyPressed(NUTTYINPUT_BTN_RIGHT)){
+                nextStep = RIGHT;
+            }
+        }
 
-                NuttyDisplay_lockLVGL();
+        if(ticking) {
+            counter++;
+            if(counter >= snake_config.speed){
+                counter = 0;
+
                 uint8_t nextX = nowX, nextY = nowY;
                 if(nextStep == UP){
                     nextY = nowY - 1;
@@ -111,53 +269,90 @@ static void snake_start(){
                 }else if(nextStep == RIGHT){
                     nextX = nowX + 1;
                 }
+                lastDir = nextStep;
 
-                lv_obj_align(head, LV_ALIGN_TOP_LEFT, nextX * 2, nextY * 2 + 1);
-                now->next->current = NuttyDisplay_showPNGWithWHXY(&tail_img, drawArea, nowX * 2, nowY * 2 + 1);
-                now->next->X = nowX;
-                now->next->Y = nowY;
-                now->next->next = NULL;
-                if(nextX < 1 || nextX > 62 || nextY < 1 || nextY > 27 || snake_map[nextY][nextX]){
+                /* Collision check */
+                if(nextX < GRID_X_MIN || nextX > GRID_X_MAX ||
+                   nextY < GRID_Y_MIN || nextY > GRID_Y_MAX ||
+                   map_get(nextY, nextX)){
+                    NuttyDisplay_lockLVGL();
+                    lv_obj_invalidate(snake_img_obj);
                     NuttyDisplay_unlockLVGL();
                     char lose[32];
-                    memset(lose, 0x00, sizeof(lose));
-                    sprintf(lose, "!!You Lose!!Score: %d!!", score);
-                    NuttySystemMonitor_setSystemTrayTempText(lose, 20);
-                    vTaskDelay(pdMS_TO_TICKS(1000));
+                    snprintf(lose, sizeof(lose), "Score: %d", score);
+                    NuttySystemMonitor_setSystemTrayTempText(lose, 30);
+
+                    /* Check scoreboard */
+                    uint16_t scores[SCOREBOARD_SIZE];
+                    scoreboard_load(scores);
+                    int8_t rank = scoreboard_insert(scores, score);
+                    if (rank >= 0) {
+                        char newhi[32];
+                        snprintf(newhi, sizeof(newhi), "NEW #%d! Score: %d", rank + 1, score);
+                        NuttySystemMonitor_setSystemTrayTempText(newhi, 60);
+                    }
+
+                    vTaskDelay(pdMS_TO_TICKS(1500));
                     break;
                 }
-                nowX = nextX;
-                nowY = nextY;
-                snake_map[nowY][nowX] = true;
-                if(nowX == foodX && nowY == foodY){
+
+                /* Save old tail coords before any changes */
+                uint8_t clearX = snake->X;
+                uint8_t clearY = snake->Y;
+                bool ate = (nextX == foodX && nextY == foodY);
+
+                if(ate) {
+                    uint8_t pts = snake_config.difficulty + 1;
+                    score += pts;
+                    char eatMsg[24];
+                    snprintf(eatMsg, sizeof(eatMsg), "+%d  Score: %d", pts, score);
+                    NuttySystemMonitor_setSystemTrayTempText(eatMsg, 10);
+                    /* Spawn new food */
                     do{
-                        foodX = rand() % 61 + 1, foodY = rand() % 27 + 1;
-                    }while(snake_map[foodY][foodX]);
-                    lv_obj_align(food, LV_ALIGN_TOP_LEFT, foodX * 2, foodY * 2 + 1);
-                    score++;
+                        foodX = rand() % 62 + 1;
+                        foodY = rand() % 27 + 1;
+                    }while(map_get(foodY, foodX) || (foodX == nextX && foodY == nextY));
                 }else{
-                    lv_obj_del(snake->current);
-                    snake_map[snake->Y][snake->X] = false;
-                    tmp = snake;
+                    /* Remove tail */
+                    map_clr(clearY, clearX);
+                    _NuttySnakeQueue *old = snake;
                     snake = snake->next;
-                    free(tmp);
+                    free(old);
+                    if (!snake) snake_tail = NULL;
+                    draw_block(clearX, clearY, false);
                 }
 
-                ESP_LOGI(TAG, "xy %d %d", nowX, nowY);
+                /* Save old head position for body rendering */
+                uint8_t oldHX = nowX, oldHY = nowY;
 
+                /* Add new node at tail of linked list */
+                _NuttySnakeQueue *node = malloc(sizeof(_NuttySnakeQueue));
+                if (!node) {
+                    ESP_LOGE(TAG, "OOM allocating snake node");
+                    break;
+                }
+                node->X = nowX;
+                node->Y = nowY;
+                node->next = NULL;
+                if (snake_tail) snake_tail->next = node;
+                snake_tail = node;
+                if (!snake) snake = node;
+                map_set(nowY, nowX);
+
+                /* Draw old head as body pattern */
+                draw_body(oldHX, oldHY);
+
+                nowX = nextX;
+                nowY = nextY;
+                map_set(nowY, nowX);
+
+                /* Draw new head solid */
+                draw_block(nowX, nowY, true);
+                draw_block(foodX, foodY, true);
+
+                NuttyDisplay_lockLVGL();
+                lv_obj_invalidate(snake_img_obj);
                 NuttyDisplay_unlockLVGL();
-            }
-            if(nextStep != DOWN && NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_UP)){
-                nextStep = UP;
-            }
-            if(nextStep != UP && NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_DOWN)){
-                nextStep = DOWN;
-            }
-            if(nextStep != RIGHT && NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_LEFT)){
-                nextStep = LEFT;
-            }
-            if(nextStep != LEFT && NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_RIGHT)){
-                nextStep = RIGHT;
             }
         }
         if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_B)){
@@ -167,14 +362,21 @@ static void snake_start(){
             ticking = true;
         }
         if(NuttyInput_waitSingleButtonHoldLongNonBlock(NUTTYINPUT_BTN_SELECT)) break;
-        vTaskDelay(pdMS_TO_TICKS(5));
+        vTaskDelay(1);
     }
-    _NuttySnakeQueue *tmp, *now = snake;
-    while(now->next != NULL){
-        tmp = now;
+
+    /* Cleanup linked list */
+    _NuttySnakeQueue *now = snake;
+    while(now != NULL){
+        _NuttySnakeQueue *tmp = now;
         now = now->next;
         free(tmp);
     }
+    snake = NULL;
+    snake_tail = NULL;
+    NuttyDisplay_lockLVGL();
+    if (snake_img_obj) { lv_obj_del(snake_img_obj); snake_img_obj = NULL; }
+    NuttyDisplay_unlockLVGL();
     NuttyDisplay_clearUserAppArea();
 }
 
@@ -209,25 +411,33 @@ static void option_difficulty(){
         vTaskDelay(pdMS_TO_TICKS(10));
         if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_A)) {
             set_difficulty(counter);
-            update_difficulty(lbl_m_s, counter);
+            NuttyDisplay_lockLVGL();
+            lv_label_set_text_fmt(lbl_m_s, "%d", counter);
+            NuttyDisplay_unlockLVGL();
             NuttySystemMonitor_setSystemTrayTempText("!!Difficulty changed!!", 20);
+            NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_UP | NUTTYINPUT_BTN_DOWN);
+            continue;
         }
         if(NuttyInput_waitSingleButtonHoldLongNonBlock(NUTTYINPUT_BTN_START)) {
             counter = 0;
             set_difficulty(counter);
             update_difficulty(lbl_m_s, counter);
             NuttySystemMonitor_setSystemTrayTempText("!!Difficulty reset!!", 20);
+            NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_UP | NUTTYINPUT_BTN_DOWN);
+            continue;
         }
         if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_UP)) {
             counter = update_difficulty(lbl_m_s, counter + 1);
         }
         if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_DOWN)) {
-            update_difficulty(lbl_m_s, counter - 1);
+            counter = update_difficulty(lbl_m_s, counter - 1);
         }
         if(NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_SELECT) || NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_B)) {
             break;
         }
     }
+    lv_style_reset(&lbl_font_big);
+    lv_style_reset(&lbl_font_nano);
     NuttyDisplay_clearUserAppArea();
 }
 
@@ -255,6 +465,8 @@ static void tutorial(){
             break;
         }
     }
+    lv_style_reset(&lbl_font_big);
+    lv_style_reset(&lbl_font_nano);
     NuttyDisplay_clearUserAppArea();
 }
 
@@ -311,16 +523,19 @@ static void nutty_main(void) {
                 NuttyDisplay_lockLVGL();
                 lv_group_remove_all_objs(g);
                 lv_group_del(g);
+                lv_style_reset(&text_style);
                 NuttyDisplay_unlockLVGL();
                 NuttyDisplay_clearUserAppArea();
 
                 if(selectedChoice == menuChoices[0]) {
                     snake_start();
                 }else if(selectedChoice == menuChoices[1]) {
-                    option_difficulty();
+                    show_scoreboard();
                 }else if(selectedChoice == menuChoices[2]) {
-                    tutorial();
+                    option_difficulty();
                 }else if(selectedChoice == menuChoices[3]) {
+                    tutorial();
+                }else if(selectedChoice == menuChoices[4]) {
                     exitApp = true;
                 }
                 break;

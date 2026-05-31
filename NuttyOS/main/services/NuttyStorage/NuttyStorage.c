@@ -2,13 +2,14 @@
 
 static const char* TAG = "NuttyStorage";
 
+// SD Card
 static bool sdPersistAndInited=false;
 static bool mounted=false;
 static uint64_t sdSzMb=0;
 static char *sdType=NULL;
 static SemaphoreHandle_t storage_semaphore;
 
-
+// SD Card
 bool NuttyStorage_isSDCardMounted() {
     bool result = false;
     while(xSemaphoreTake(storage_semaphore, portMAX_DELAY) != pdTRUE);
@@ -41,6 +42,68 @@ void NuttyStorage_getSDCardType(char **type) {
     xSemaphoreGive(storage_semaphore);
 }
 
+// NVS (KV)
+esp_err_t NuttyStorage_setIntegerKV(const char* key, NuttyStorageKVIntegerValueType valueType, void *value) {
+    switch(valueType) {
+        case NVS_TYPE_INT64:
+            return nuttyDriverKV.setInt64(key, *(int64_t*)value);
+        case NVS_TYPE_UINT64:
+            return nuttyDriverKV.setUInt64(key, *(uint64_t*)value);
+        case NVS_TYPE_INT32:
+            return nuttyDriverKV.setInt32(key, *(int32_t*)value);
+        case NVS_TYPE_UINT32:
+            return nuttyDriverKV.setUInt32(key, *(uint32_t*)value);
+        case NVS_TYPE_INT16:
+            return nuttyDriverKV.setInt16(key, *(int16_t*)value);
+        case NVS_TYPE_UINT16:
+            return nuttyDriverKV.setUInt16(key, *(uint16_t*)value);
+        case NVS_TYPE_INT8:
+            return nuttyDriverKV.setInt8(key, *(int8_t*)value);
+        case NVS_TYPE_UINT8:
+            return nuttyDriverKV.setUInt8(key, *(uint8_t*)value);
+        default:
+            return ESP_ERR_INVALID_ARG;
+    }
+}
+
+esp_err_t NuttyStorage_getIntegerKV(const char* key, NuttyStorageKVIntegerValueType valueType, void *value) {
+    switch(valueType) {
+        case NVS_TYPE_INT64:
+            return nuttyDriverKV.getInt64(key, (int64_t*)value, 0);
+        case NVS_TYPE_UINT64:
+            return nuttyDriverKV.getUInt64(key, (uint64_t*)value, 0);
+        case NVS_TYPE_INT32:
+            return nuttyDriverKV.getInt32(key, (int32_t*)value, 0);
+        case NVS_TYPE_UINT32:
+            return nuttyDriverKV.getUInt32(key, (uint32_t*)value, 0);
+        case NVS_TYPE_INT16:
+            return nuttyDriverKV.getInt16(key, (int16_t*)value, 0);
+        case NVS_TYPE_UINT16:
+            return nuttyDriverKV.getUInt16(key, (uint16_t*)value, 0);
+        case NVS_TYPE_INT8:
+            return nuttyDriverKV.getInt8(key, (int8_t*)value, 0);
+        case NVS_TYPE_UINT8:
+            return nuttyDriverKV.getUInt8(key, (uint8_t*)value, 0);
+        default:
+            return ESP_ERR_INVALID_ARG;
+    }
+}
+
+esp_err_t NuttyStorage_setStringKV(const char* key, const char* value) {
+    return nuttyDriverKV.setStr(key, value);
+}
+
+esp_err_t NuttyStorage_getStringKV(const char* key, char *out_value, size_t max_size, const char* default_value) {
+    return nuttyDriverKV.getStr(key, out_value, max_size, default_value);
+}
+
+esp_err_t NuttyStorge_setBlobKV(const char* key, const void* value, size_t length) {
+    return nuttyDriverKV.setBlob(key, value, length);
+}
+
+esp_err_t NuttyStorage_getBlobKV(const char* key, void* out_value, size_t max_size, const void* default_value, size_t default_length) {
+    return nuttyDriverKV.getBlob(key, out_value, max_size, default_value, default_length);
+}
 
 static void NuttyStorage_Worker(void* arg) {
     while(true) {

@@ -62,13 +62,13 @@ static nutty_audio_player_state_t g_player = {
     .current_path = {0},
 };
 
-static const char *g_actions[AUDIO_PLAYER_ACTION_COUNT] = {
-    "Select File",
-    "Play / Pause",
-    "Loop",
-    "BG",
-    "Crazy",
-    "Exit",
+static const char *g_action_icons[AUDIO_PLAYER_ACTION_COUNT] = {
+    [AUDIO_PLAYER_ACTION_SELECT_FILE] = LV_SYMBOL_DIRECTORY,
+    [AUDIO_PLAYER_ACTION_PLAY_PAUSE] = LV_SYMBOL_PLAY,
+    [AUDIO_PLAYER_ACTION_TOGGLE_LOOP] = LV_SYMBOL_REFRESH,
+    [AUDIO_PLAYER_ACTION_TOGGLE_BG] = LV_SYMBOL_AUDIO,
+    [AUDIO_PLAYER_ACTION_TOGGLE_CRAZY] = LV_SYMBOL_BELL,
+    [AUDIO_PLAYER_ACTION_EXIT] = LV_SYMBOL_CLOSE,
 };
 
 typedef struct {
@@ -96,32 +96,6 @@ static void audio_player_menu_key_cb(lv_event_t *event) {
     if(lv_event_get_key(event) == LV_KEY_ESC) {
         *ctx->exit_requested = true;
     }
-}
-
-static const char *audio_player_state_to_text(audio_player_state_t state) {
-    switch(state) {
-        case AUDIO_PLAYER_STATE_IDLE:
-            return "IDLE";
-        case AUDIO_PLAYER_STATE_PLAYING:
-            return "PLAYING";
-        case AUDIO_PLAYER_STATE_PAUSE:
-            return "PAUSE";
-        case AUDIO_PLAYER_STATE_SHUTDOWN:
-            return "SHUTDOWN";
-        default:
-            return "UNKNOWN";
-    }
-}
-
-static const char *audio_player_basename(const char *path) {
-    const char *base = strrchr(path, '/');
-    const char *backslash = strrchr(path, '\\');
-
-    if(backslash != NULL && (base == NULL || backslash > base)) {
-        base = backslash;
-    }
-
-    return (base == NULL) ? path : base + 1;
 }
 
 static bool audio_player_is_mp3_path(const char *path) {
@@ -366,81 +340,33 @@ static esp_err_t audio_player_backend_init(void) {
 }
 
 typedef struct {
-    bool valid;
-    bool has_file;
-    bool loop_enabled;
-    bool bg_enabled;
-    bool crazy_enabled;
-    bool play_request_in_flight;
-    audio_player_state_t state;
-    char path[AUDIO_PLAYER_MAX_PATH];
-} audio_player_ui_cache_t;
-
-static audio_player_ui_cache_t g_ui_cache = {0};
-
-static void audio_player_refresh_ui_if_needed(lv_obj_t *fileLabel, lv_obj_t *stateLabel, lv_obj_t *loopLabel, lv_obj_t *bgLabel, lv_obj_t *crazyLabel, bool force) {
-    const bool need_force = force || !g_ui_cache.valid;
-    audio_player_state_t state = audio_player_get_state();
-
-    if(need_force || g_ui_cache.has_file != g_player.has_file ||
-       (g_player.has_file && strcmp(g_ui_cache.path, g_player.current_path) != 0)) {
-        lv_label_set_text_fmt(
-            fileLabel,
-            "File: %s",
-            g_player.has_file ? audio_player_basename(g_player.current_path) : "<none>"
-        );
-        g_ui_cache.has_file = g_player.has_file;
-        if(g_player.has_file) {
-            strlcpy(g_ui_cache.path, g_player.current_path, sizeof(g_ui_cache.path));
-        } else {
-            g_ui_cache.path[0] = '\0';
-        }
-    }
-
-    if(need_force || g_ui_cache.state != state || g_ui_cache.play_request_in_flight != g_player.play_request_in_flight) {
-        lv_label_set_text_fmt(stateLabel, "State: %s%s", audio_player_state_to_text(state), g_player.play_request_in_flight ? " *" : "");
-        g_ui_cache.state = state;
-        g_ui_cache.play_request_in_flight = g_player.play_request_in_flight;
-    }
-
-    if(loopLabel != NULL && (need_force || g_ui_cache.loop_enabled != g_player.loop_enabled)) {
-        lv_label_set_text_fmt(loopLabel, "Loop: %s", g_player.loop_enabled ? "ON" : "OFF");
-        g_ui_cache.loop_enabled = g_player.loop_enabled;
-    }
-
-    if(bgLabel != NULL && (need_force || g_ui_cache.bg_enabled != g_player.bg_enabled)) {
-        lv_label_set_text_fmt(bgLabel, "BG: %s", g_player.bg_enabled ? "ON" : "OFF");
-        g_ui_cache.bg_enabled = g_player.bg_enabled;
-    }
-
-    if(crazyLabel != NULL && (need_force || g_ui_cache.crazy_enabled != g_player.crazy_enabled)) {
-        lv_label_set_text_fmt(crazyLabel, "Crazy: %s", g_player.crazy_enabled ? "ON" : "OFF");
-        g_ui_cache.crazy_enabled = g_player.crazy_enabled;
-    }
-
-    g_ui_cache.valid = true;
-}
-
-typedef struct {
     lv_group_t *group;
     lv_obj_t *menu;
     lv_obj_t *mainPage;
-    lv_obj_t *fileLabel;
-    lv_obj_t *stateLabel;
     lv_obj_t *action_labels[AUDIO_PLAYER_ACTION_COUNT];
-    lv_style_t header_style;
     lv_style_t menu_style;
     audio_player_action_ctx_t action_ctx[AUDIO_PLAYER_ACTION_COUNT];
     audio_player_menu_key_ctx_t key_ctx;
     bool exit_requested;
+    audio_player_state_t last_state;
 } audio_player_ui_t;
 
 static bool audio_player_ui_is_valid(const audio_player_ui_t *ui) {
-    if(ui == NULL || ui->menu == NULL || ui->fileLabel == NULL || ui->stateLabel == NULL) {
+    if(ui == NULL || ui->menu == NULL || ui->mainPage == NULL) {
         return false;
     }
 
-    return lv_obj_is_valid(ui->menu) && lv_obj_is_valid(ui->fileLabel) && lv_obj_is_valid(ui->stateLabel);
+    if(!lv_obj_is_valid(ui->menu) || !lv_obj_is_valid(ui->mainPage)) {
+        return false;
+    }
+
+    for(uint8_t i = 0; i < AUDIO_PLAYER_ACTION_COUNT; i++) {
+        if(ui->action_labels[i] == NULL || !lv_obj_is_valid(ui->action_labels[i])) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 static void audio_player_ensure_main_page(const audio_player_ui_t *ui) {
@@ -451,6 +377,33 @@ static void audio_player_ensure_main_page(const audio_player_ui_t *ui) {
         return;
     }
     lv_menu_set_page(ui->menu, ui->mainPage);
+}
+
+static const char *audio_player_get_action_icon(audio_player_action_t action, audio_player_state_t state) {
+    if(action == AUDIO_PLAYER_ACTION_PLAY_PAUSE) {
+        return (state == AUDIO_PLAYER_STATE_PLAYING) ? LV_SYMBOL_PAUSE : LV_SYMBOL_PLAY;
+    }
+
+    if(action < AUDIO_PLAYER_ACTION_COUNT) {
+        return g_action_icons[action];
+    }
+
+    return LV_SYMBOL_SETTINGS;
+}
+
+static void audio_player_update_action_icons(audio_player_ui_t *ui, bool force) {
+    if(ui == NULL) {
+        return;
+    }
+
+    audio_player_state_t state = audio_player_get_state();
+    if(force || ui->last_state != state) {
+        lv_obj_t *label = ui->action_labels[AUDIO_PLAYER_ACTION_PLAY_PAUSE];
+        if(label != NULL) {
+            lv_label_set_text(label, audio_player_get_action_icon(AUDIO_PLAYER_ACTION_PLAY_PAUSE, state));
+        }
+        ui->last_state = state;
+    }
 }
 
 static void audio_player_set_crazy_enabled(bool enabled) {
@@ -516,36 +469,20 @@ static void audio_player_init_ui(audio_player_ui_t *ui, audio_player_action_t *p
     assert(indev != NULL);
 
     memset(ui, 0, sizeof(*ui));
-    memset(&g_ui_cache, 0, sizeof(g_ui_cache));
-
     ui->group = lv_group_create();
     assert(ui->group != NULL);
     lv_group_set_default(ui->group);
     lv_indev_set_group(indev, ui->group);
 
-    lv_style_init(&ui->header_style);
     lv_style_init(&ui->menu_style);
-    lv_style_set_text_font(&ui->header_style, &lv_font_montserrat_8);
-    lv_style_set_text_font(&ui->menu_style, &lv_font_montserrat_10);
+    lv_style_set_text_font(&ui->menu_style, &lv_font_montserrat_16);
 
     lv_obj_t *drawArea = NuttyDisplay_getUserAppArea();
 
     NuttyDisplay_lockLVGL();
-    ui->fileLabel = lv_label_create(drawArea);
-    lv_obj_add_style(ui->fileLabel, &ui->header_style, LV_PART_MAIN);
-    lv_label_set_long_mode(ui->fileLabel, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_obj_set_width(ui->fileLabel, lv_obj_get_width(drawArea));
-    lv_obj_align(ui->fileLabel, LV_ALIGN_TOP_LEFT, 0, 0);
-
-    ui->stateLabel = lv_label_create(drawArea);
-    lv_obj_add_style(ui->stateLabel, &ui->header_style, LV_PART_MAIN);
-    lv_obj_set_width(ui->stateLabel, lv_obj_get_width(drawArea));
-    lv_obj_align(ui->stateLabel, LV_ALIGN_TOP_LEFT, 0, 9);
-
-    const uint16_t header_height = 18;
     ui->menu = lv_menu_create(drawArea);
-    lv_obj_set_size(ui->menu, lv_obj_get_width(drawArea), lv_obj_get_height(drawArea) - header_height);
-    lv_obj_align(ui->menu, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_size(ui->menu, lv_obj_get_width(drawArea), lv_obj_get_height(drawArea));
+    lv_obj_align(ui->menu, LV_ALIGN_CENTER, 0, 0);
 
     ui->exit_requested = false;
     ui->key_ctx.exit_requested = &ui->exit_requested;
@@ -553,29 +490,28 @@ static void audio_player_init_ui(audio_player_ui_t *ui, audio_player_action_t *p
 
     lv_obj_t *mainPage = lv_menu_page_create(ui->menu, NULL);
     ui->mainPage = mainPage;
+    audio_player_state_t state = audio_player_get_state();
     for(uint8_t i = 0; i < AUDIO_PLAYER_ACTION_COUNT; i++) {
         lv_obj_t *cont = lv_menu_cont_create(mainPage);
         lv_obj_t *label = lv_label_create(cont);
         lv_obj_add_style(label, &ui->menu_style, LV_PART_MAIN);
-        lv_label_set_text(label, g_actions[i]);
+        lv_label_set_text(label, audio_player_get_action_icon((audio_player_action_t)i, state));
+        lv_obj_set_width(label, lv_pct(100));
+        lv_label_set_long_mode(label, LV_LABEL_LONG_CLIP);
+        lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
         ui->action_labels[i] = label;
         lv_menu_set_load_page_event(ui->menu, cont, NULL);
         ui->action_ctx[i].action = (audio_player_action_t)i;
         ui->action_ctx[i].pending_action = pending_action;
         lv_obj_add_event_cb(cont, audio_player_menu_action_cb, LV_EVENT_CLICKED, &ui->action_ctx[i]);
         lv_obj_set_style_outline_width(cont, 1, LV_STATE_FOCUS_KEY);
+        lv_obj_set_flex_align(cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_group_add_obj(ui->group, cont);
     }
 
     lv_menu_set_page(ui->menu, mainPage);
-    audio_player_refresh_ui_if_needed(
-        ui->fileLabel,
-        ui->stateLabel,
-        ui->action_labels[AUDIO_PLAYER_ACTION_TOGGLE_LOOP],
-        ui->action_labels[AUDIO_PLAYER_ACTION_TOGGLE_BG],
-        ui->action_labels[AUDIO_PLAYER_ACTION_TOGGLE_CRAZY],
-        true
-    );
+    ui->last_state = state;
+    audio_player_update_action_icons(ui, true);
     NuttyDisplay_unlockLVGL();
 }
 
@@ -805,19 +741,10 @@ static void nutty_main(void) {
         audio_player_handle_auto_loop();
         audio_player_update_crazy_leds();
 
-        if(ui.fileLabel != NULL && ui.stateLabel != NULL) {
-            NuttyDisplay_lockLVGL();
-            audio_player_ensure_main_page(&ui);
-            audio_player_refresh_ui_if_needed(
-                ui.fileLabel,
-                ui.stateLabel,
-                ui.action_labels[AUDIO_PLAYER_ACTION_TOGGLE_LOOP],
-                ui.action_labels[AUDIO_PLAYER_ACTION_TOGGLE_BG],
-                ui.action_labels[AUDIO_PLAYER_ACTION_TOGGLE_CRAZY],
-                false
-            );
-            NuttyDisplay_unlockLVGL();
-        }
+        NuttyDisplay_lockLVGL();
+        audio_player_ensure_main_page(&ui);
+        audio_player_update_action_icons(&ui, false);
+        NuttyDisplay_unlockLVGL();
 
         vTaskDelay(pdMS_TO_TICKS(50));
     }

@@ -33,7 +33,7 @@ static const char *PWM_AUDIO_NOT_INITIALIZED  = "PWM AUDIO Uninitialized";
 #define CHANNEL_LEFT_INDEX  (0)
 #define CHANNEL_LEFT_MASK   (0x01)
 #define CHANNEL_RIGHT_MASK  (0x02)
-#define VOLUME_0DB          (16)
+#define MAX_VOLUME          (48)   // TODO: This value is obtained from testing, could be optimized in the future.
 
 #ifndef TIMER_BASE_CLK
 #define TIMER_BASE_CLK 80000000
@@ -64,7 +64,7 @@ typedef struct {
     uint32_t              channel_set_num;                 /**< channel audio set number */
     int32_t               framerate;                       /*!< frame rates in Hz */
     int32_t               bits_per_sample;                 /*!< bits per sample (8, 16, 32) */
-    int32_t               volume;                          /*!< the volume(-VOLUME_0DB ~ VOLUME_0DB) */
+    int32_t               volume;                          /*!< the volume */
     pwm_audio_status_t status;
 } pwm_audio_data_t;
 
@@ -309,10 +309,22 @@ esp_err_t pwm_audio_get_param(int *rate, int *bits, int *ch)
 }
 
 void pwm_audio_reset_freq() {
+    // FIXME: Use 8-bit first
     uint32_t freq = (APB_CLK_FREQ / (1 << g_pwm_audio_handle->ledc_timer.duty_resolution));
     
     ESP_LOGI(TAG, "Using FREQ: %lu, res=%d", freq, g_pwm_audio_handle->ledc_timer.duty_resolution);
     g_pwm_audio_handle->ledc_timer.freq_hz = freq - (freq % 1000); // fixed PWM frequency ,It's a multiple of 1000
+    /*
+     * We can actually calculate this frequency manually:
+     * For ESP32S3, the APB clock is 80MHz.
+     * If we set the duty resolution to 8-bit, the LEDC PWM frequency will be 80MHz / 256 = 312.5KHz
+     * If we set the duty resolution to 10-bit, the LEDC PWM frequency will be 80MHz / 1024 = 78.125KHz.
+     * To maximize the audio quality, actually we want to:
+     * - Maximize PWM Frequency
+     * - Minimize the quantization noise (which means we want higher resolution)
+     * To balance this, we will use 10-bit PWM, then the LED PWM frequency will be 78.125KHz, which is still higher than the human audible range, and the quantization noise is much lower than 8-bit PWM.
+     */
+    
     //g_pwm_audio_handle->ledc_timer.freq_hz = 30000; // fixed PWM frequency ,It's a multiple of 1000
     ledc_timer_config(&g_pwm_audio_handle->ledc_timer);
 }
@@ -381,6 +393,7 @@ esp_err_t pwm_audio_init(const pwm_audio_config_t *cfg)
     handle->ledc_timer.speed_mode = LEDC_LOW_SPEED_MODE;
     handle->ledc_timer.duty_resolution = handle->config.duty_resolution;
     //handle->ledc_timer.duty_resolution = 8;
+    handle->ledc_timer.clk_cfg = LEDC_USE_APB_CLK;
     handle->ledc_timer.timer_num = handle->config.ledc_timer_sel;
     pwm_audio_reset_freq();
     res = ledc_timer_config(&handle->ledc_timer);
@@ -474,12 +487,12 @@ esp_err_t pwm_audio_set_volume(int8_t volume)
     pwm_audio_data_t *handle = g_pwm_audio_handle;
     PWM_AUDIO_CHECK(NULL != handle, PWM_AUDIO_NOT_INITIALIZED, ESP_ERR_INVALID_STATE);
     if (volume < 0) {
-        PWM_AUDIO_CHECK(-volume <= VOLUME_0DB, "Volume is too small", ESP_ERR_INVALID_ARG);
+        PWM_AUDIO_CHECK(-volume <= MAX_VOLUME, "Volume is too small", ESP_ERR_INVALID_ARG);
     } else {
-        PWM_AUDIO_CHECK(volume <= VOLUME_0DB, "Volume is too large", ESP_ERR_INVALID_ARG);
+        PWM_AUDIO_CHECK(volume <= MAX_VOLUME, "Volume is too large", ESP_ERR_INVALID_ARG);
     }
 
-    handle->volume = volume + VOLUME_0DB;
+    handle->volume = volume;
     return ESP_OK;
 }
 
@@ -526,27 +539,15 @@ esp_err_t IRAM_ATTR pwm_audio_write(uint8_t *inbuf, size_t inbuf_len, size_t *by
 
             switch (handle->bits_per_sample) {
             case 8: {
-                if (shift < 0) {
-                    /**< When the PWM resolution is greater than 8 bits, the value needs to be expanded */
-                    uint16_t value;
-                    uint8_t temp;
-                    shift = -shift;
-                    len >>= 1;
-                    bytes_can_write >>= 1;
+                for (size_t i = 0; i < len; i++) {
+                    int32_t s = (int32_t)inbuf[i] - 128;   // center to signed
+                    s = (s * handle->volume) / 16;         // 16 = unity, 32 = 2x
+                    s += 128;                              // back to unsigned duty
 
-                    for (size_t i = 0; i < len; i++) {
-                        temp = (inbuf[i] * handle->volume / VOLUME_0DB) + 0x7f; /**< offset */
-                        value = temp << shift;
-                        rb_write_byte(rb, value);
-                        rb_write_byte(rb, value >> 8);
-                    }
-                } else {
-                    uint8_t value;
+                    if (s < 0)   s = 0;
+                    if (s > 255) s = 255;
 
-                    for (size_t i = 0; i < len; i++) {
-                        value = (inbuf[i] * handle->volume / VOLUME_0DB) + 0x7f; /**< offset */
-                        rb_write_byte(rb, value);
-                    }
+                    rb_write_byte(rb, (uint8_t)s);
                 }
             }
             break;
@@ -560,7 +561,7 @@ esp_err_t IRAM_ATTR pwm_audio_write(uint8_t *inbuf, size_t inbuf_len, size_t *by
                 if (handle->config.duty_resolution > 8) {
                     for (size_t i = 0; i < len; i++) {
                         temp = buf_16b[i];
-                        temp = temp * handle->volume / VOLUME_0DB;
+                        temp = temp * handle->volume / MAX_VOLUME;
                         value_16b = temp + 0x7fff; /**< offset */
                         value_16b >>= shift;
                         rb_write_byte(rb, value_16b);
@@ -572,7 +573,7 @@ esp_err_t IRAM_ATTR pwm_audio_write(uint8_t *inbuf, size_t inbuf_len, size_t *by
                      */
                     for (size_t i = 0; i < len; i++) {
                         temp = buf_16b[i];
-                        temp = temp * handle->volume / VOLUME_0DB;
+                        temp = temp * handle->volume / MAX_VOLUME;
                         value_16b = temp + 0x7fff; /**< offset */
                         value_16b >>= shift;
                         rb_write_byte(rb, value_16b);
@@ -590,7 +591,7 @@ esp_err_t IRAM_ATTR pwm_audio_write(uint8_t *inbuf, size_t inbuf_len, size_t *by
                 if (handle->config.duty_resolution > 8) {
                     for (size_t i = 0; i < len; i++) {
                         temp = buf_32b[i];
-                        temp = temp * handle->volume / VOLUME_0DB;
+                        temp = temp * handle->volume / MAX_VOLUME;
                         value = temp + 0x7fffffff; /**< offset */
                         value >>= shift;
                         rb_write_byte(rb, value);
@@ -602,7 +603,7 @@ esp_err_t IRAM_ATTR pwm_audio_write(uint8_t *inbuf, size_t inbuf_len, size_t *by
                      */
                     for (size_t i = 0; i < len; i++) {
                         temp = buf_32b[i];
-                        temp = temp * handle->volume / VOLUME_0DB;
+                        temp = temp * handle->volume / MAX_VOLUME;
                         value = temp + 0x7fffffff; /**< offset */
                         value >>= shift;
                         rb_write_byte(rb, value);

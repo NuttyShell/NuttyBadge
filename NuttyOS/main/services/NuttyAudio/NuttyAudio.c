@@ -12,15 +12,20 @@ static uint16_t playHzDuration=0;
 static uint16_t playHzTotalDuration=0;
 static uint8_t toneVolume=0;
 static bool playedFirstTime = false;
-static const uint8_t zeros[1024] = {0};
+static bool workerIdle = true;
+static pwm_audio_status_t pwmAudioStatus;
+static const uint8_t zeros[256] = {0};
 
 static void NuttyAudio_Worker(void *pvParameters) {
     size_t bytesWritten=0;
+    workerIdle=false;
     vTaskDelay(pdMS_TO_TICKS(20));
     ESP_LOGI(TAG, "Audio Worker starting...");
     if(!playedFirstTime) { // Workaround for pwm_audio_write will return immediately when calling for the first time.
-        ESP_LOGI(TAG, "Work around...");
+        ESP_LOGI(TAG, "Workaround applied");
         playedFirstTime = true;
+        pwm_audio_write(zeros, sizeof(zeros), &bytesWritten, pdMS_TO_TICKS(50));
+        pwm_audio_write(zeros, sizeof(zeros), &bytesWritten, pdMS_TO_TICKS(50));
         pwm_audio_write(zeros, sizeof(zeros), &bytesWritten, pdMS_TO_TICKS(50));
         pwm_audio_write(zeros, sizeof(zeros), &bytesWritten, pdMS_TO_TICKS(50));
     }
@@ -31,10 +36,14 @@ static void NuttyAudio_Worker(void *pvParameters) {
             ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0);
             ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
             while(playBufLoc != playBufSz) {
-                pwm_audio_write(playBuf + playBufLoc, playBufSz - playBufLoc, &bytesWritten, pdMS_TO_TICKS(200));
+                pwm_audio_write(playBuf + playBufLoc, playBufSz - playBufLoc, &bytesWritten, portMAX_DELAY);
                 playBufLoc += bytesWritten;
                 //ESP_LOGI(TAG, "Audio: Written = %u; Left=%u", bytesWritten, (playBufSz - playBufLoc));
             }
+
+            pwmAudioStatus = PWM_AUDIO_STATUS_BUSY;
+            while(pwmAudioStatus == PWM_AUDIO_STATUS_BUSY) pwm_audio_get_status(&pwmAudioStatus);
+            
         }else if(playHz > 0) {
             // Play Tone
             ledc_set_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER_2, playHz);
@@ -50,6 +59,7 @@ static void NuttyAudio_Worker(void *pvParameters) {
         }
         vTaskDelay(200/portTICK_PERIOD_MS);
     }
+    workerIdle=true;
 }
 
 esp_err_t NuttyAudio_Init() {
@@ -61,7 +71,7 @@ esp_err_t NuttyAudio_Init() {
     pac.gpio_num_right      = -1;
     pac.ledc_channel_left  = LEDC_CHANNEL_1;
     pac.ledc_timer_sel     = LEDC_TIMER_2;
-    pac.ringbuf_len        = 1024 * 8;
+    pac.ringbuf_len        = 1024 * 4;
 
     err = pwm_audio_init(&pac);             /**< Initialize pwm audio */
     ESP_ERROR_CHECK(err);
@@ -116,7 +126,10 @@ esp_err_t NuttyAudio_PlayBuffer(uint8_t *buf, size_t sz) {
 
 esp_err_t NuttyAudio_PlayTone(uint16_t hz, uint16_t duration_100ms) {
     if(!NuttyAudioInitialized) return ESP_ERR_INVALID_STATE;
-    if(NuttyAudio_WorkerHandle != NULL) vTaskDelete(NuttyAudio_WorkerHandle);
+    if(NuttyAudio_WorkerHandle != NULL) {
+        vTaskDelete(NuttyAudio_WorkerHandle);
+        NuttyAudio_WorkerHandle = NULL;
+    }
 
     playBuf=NULL;
     playBufLoc=0;
@@ -134,6 +147,7 @@ esp_err_t NuttyAudio_StopPlaying() {
     if(!NuttyAudioInitialized) return ESP_ERR_INVALID_STATE;
     if(NuttyAudio_WorkerHandle != NULL) vTaskDelete(NuttyAudio_WorkerHandle);
     NuttyAudio_WorkerHandle = NULL;
+    workerIdle=true;
     return ESP_OK;
 }
 
@@ -156,7 +170,7 @@ esp_err_t NuttyAudio_FinishedPlayed(bool *status) {
     ESP_ERROR_CHECK(err);
     err = NuttyAudio_FinshedPlayedTone(&_statusTone);
     ESP_ERROR_CHECK(err);
-    *status = (_statusBuf && _statusTone);
+    *status = (_statusBuf && _statusTone && workerIdle);
     return ESP_OK;
 }
 

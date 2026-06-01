@@ -39,6 +39,7 @@ void NuttyInput_waitSingleButtonHoldAndReleasedBlocking(uint16_t btn);
 bool NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(uint16_t btn);
 bool NuttyInput_waitSingleButtonHoldLongNonBlock(uint16_t btn);
 void NuttyInput_clearButtonHoldState(uint16_t btn);
+uint16_t NuttyInput_popPressedEvent(uint16_t btns);
 lv_indev_t* NuttyInput_UpdateLVGLInDev(NuttyInputLVGLInputMapping mapping);
 
 esp_err_t NuttyInput_Init();

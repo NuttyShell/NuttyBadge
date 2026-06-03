@@ -7,6 +7,21 @@ static void lvgl_on_click_set_path(lv_event_t * event) {
     *((char **)event->user_data) = entry;
 }
 
+typedef struct {
+    bool *exit_requested;
+} file_manager_key_ctx_t;
+
+static void lvgl_on_key_event_handler(lv_event_t *event) {
+    file_manager_key_ctx_t *ctx = (file_manager_key_ctx_t *)lv_event_get_user_data(event);
+    if(ctx == NULL || ctx->exit_requested == NULL) {
+        return;
+    }
+
+    if(lv_event_get_key(event) == LV_KEY_ESC) {
+        *ctx->exit_requested = true;
+    }
+}
+
 static void generate_file_menu(char *path, bool ret_when_sel_file) {
     char *selectedFileOrDir = NULL;
 
@@ -32,6 +47,8 @@ static void generate_file_menu(char *path, bool ret_when_sel_file) {
         .UP=LV_KEY_PREV,
         .DOWN=LV_KEY_NEXT,
         .A=LV_KEY_ENTER,
+        .B=LV_KEY_ESC,
+        .START=LV_KEY_ESC,
     };
     lv_indev_t *indev = NuttyInput_UpdateLVGLInDev(mapping);
     assert(indev != NULL);
@@ -48,6 +65,11 @@ static void generate_file_menu(char *path, bool ret_when_sel_file) {
 
     lv_obj_t *drawArea = NuttyDisplay_getUserAppArea();
 
+    bool exit_requested = false;
+    file_manager_key_ctx_t key_ctx = {
+        .exit_requested = &exit_requested,
+    };
+
     NuttyDisplay_lockLVGL();
     lv_obj_t *menu = lv_menu_create(drawArea);
     lv_obj_t *lblCurrentPath = lv_label_create(drawArea);
@@ -62,6 +84,7 @@ static void generate_file_menu(char *path, bool ret_when_sel_file) {
     
     lv_obj_set_size(menu, lv_obj_get_width(drawArea), lv_obj_get_height(drawArea) - 10);
     lv_obj_align(menu, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_add_event_cb(menu, lvgl_on_key_event_handler, LV_EVENT_KEY, &key_ctx);
 
     lv_obj_t *mainPage = lv_menu_page_create(menu, NULL);
     lv_obj_t *cont, *label;
@@ -134,33 +157,43 @@ static void generate_file_menu(char *path, bool ret_when_sel_file) {
     NuttyDisplay_unlockLVGL();
 
     while(selectedFileOrDir == NULL) {
+        if(exit_requested) {
+            selectedFileOrDir = (char *)"<EXIT>";
+            break;
+        }
         vTaskDelay(pdTICKS_TO_MS(10));
     }
 
     bool isExit = (strcmp(selectedFileOrDir, "<EXIT>") == 0);
+    bool isDir = false;
 
-    char *selectedFileOrDirName = selectedFileOrDir;
-    while(*selectedFileOrDirName != '\t') selectedFileOrDirName++;
-    selectedFileOrDirName++;
-    while(*selectedFileOrDirName != '\t') selectedFileOrDirName++;
-    selectedFileOrDirName++;
-
-    bool isDir=false;
-    if(selectedFileOrDir[1] == 'D' && selectedFileOrDir[2] == 'I' && selectedFileOrDir[3] == 'R') { // [DIR]
-        isDir = true;
-        strcat(path, selectedFileOrDirName);
-        strcat(path, "/");
-    }
-
-    if(selectedFileOrDir[0] == '.' && selectedFileOrDir[1] == '.') { // ..
+    if(!isExit && strcmp(selectedFileOrDir, "..") == 0) {
         isDir = true; // Back to last DIR
         size_t len = strlen(path);
-        // Walk backward from the end
-        for (int i = len - 2; i >= 0; i--) {
-            if (path[i] == '/') {
+        for(int i = (int)len - 2; i >= 0; i--) {
+            if(path[i] == '/') {
                 path[i + 1] = '\0';
                 break;
             }
+        }
+    }
+
+    const char *selectedFileOrDirName = NULL;
+    if(!isExit && !isDir) {
+        const char *first_tab = strchr(selectedFileOrDir, '\t');
+        const char *second_tab = (first_tab != NULL) ? strchr(first_tab + 1, '\t') : NULL;
+        if(first_tab == NULL || second_tab == NULL) {
+            isExit = true;
+        } else {
+            selectedFileOrDirName = second_tab + 1;
+        }
+    }
+
+    if(!isExit && selectedFileOrDirName != NULL) {
+        if(selectedFileOrDir[1] == 'D' && selectedFileOrDir[2] == 'I' && selectedFileOrDir[3] == 'R') { // [DIR]
+            isDir = true;
+            strcat(path, selectedFileOrDirName);
+            strcat(path, "/");
         }
     }
     

@@ -653,6 +653,36 @@ static bool audio_player_pick_file(char *selected_path, size_t selected_path_len
     return true;
 }
 
+#define AUDIO_PLAYER_VOLUME_RAMP_STEPS 8
+#define AUDIO_PLAYER_VOLUME_RAMP_MS   2
+
+static void audio_player_ramp_volume(int8_t from, int8_t to) {
+    if(from == to) {
+        return;
+    }
+
+    int16_t step = ((int16_t)to - (int16_t)from);
+    if(step > 0) {
+        step = (step + AUDIO_PLAYER_VOLUME_RAMP_STEPS / 2) / AUDIO_PLAYER_VOLUME_RAMP_STEPS;
+        if(step == 0) step = 1;
+    } else {
+        step = (step - AUDIO_PLAYER_VOLUME_RAMP_STEPS / 2) / AUDIO_PLAYER_VOLUME_RAMP_STEPS;
+        if(step == 0) step = -1;
+    }
+
+    int16_t current = (int16_t)from;
+    for(int i = 0; i < AUDIO_PLAYER_VOLUME_RAMP_STEPS; i++) {
+        current += step;
+        if((step > 0 && current > to) || (step < 0 && current < to)) {
+            current = (int16_t)to;
+        }
+        pwm_audio_set_volume((int8_t)current);
+        vTaskDelay(pdMS_TO_TICKS(AUDIO_PLAYER_VOLUME_RAMP_MS));
+    }
+
+    pwm_audio_set_volume(to);
+}
+
 static esp_err_t audio_player_start_selected_file(void) {
     if(!g_player.has_file) {
         NuttySystemMonitor_setSystemTrayTempText("!! No file selected !!", 20);
@@ -691,36 +721,6 @@ static esp_err_t audio_player_start_selected_file(void) {
 
     NuttySystemMonitor_setSystemTrayTempText("!Playing...", 12);
     return ESP_OK;
-}
-
-#define AUDIO_PLAYER_VOLUME_RAMP_STEPS 8
-#define AUDIO_PLAYER_VOLUME_RAMP_MS   2
-
-static void audio_player_ramp_volume(int8_t from, int8_t to) {
-    if(from == to) {
-        return;
-    }
-
-    int16_t step = ((int16_t)to - (int16_t)from);
-    if(step > 0) {
-        step = (step + AUDIO_PLAYER_VOLUME_RAMP_STEPS / 2) / AUDIO_PLAYER_VOLUME_RAMP_STEPS;
-        if(step == 0) step = 1;
-    } else {
-        step = (step - AUDIO_PLAYER_VOLUME_RAMP_STEPS / 2) / AUDIO_PLAYER_VOLUME_RAMP_STEPS;
-        if(step == 0) step = -1;
-    }
-
-    int16_t current = (int16_t)from;
-    for(int i = 0; i < AUDIO_PLAYER_VOLUME_RAMP_STEPS; i++) {
-        current += step;
-        if((step > 0 && current > to) || (step < 0 && current < to)) {
-            current = (int16_t)to;
-        }
-        pwm_audio_set_volume((int8_t)current);
-        vTaskDelay(pdMS_TO_TICKS(AUDIO_PLAYER_VOLUME_RAMP_MS));
-    }
-
-    pwm_audio_set_volume(to);
 }
 
 static void audio_player_stop_current(bool disarm_loop) {

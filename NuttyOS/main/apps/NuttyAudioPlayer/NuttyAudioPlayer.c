@@ -653,36 +653,6 @@ static bool audio_player_pick_file(char *selected_path, size_t selected_path_len
     return true;
 }
 
-#define AUDIO_PLAYER_VOLUME_RAMP_STEPS 8
-#define AUDIO_PLAYER_VOLUME_RAMP_MS   2
-
-static void audio_player_ramp_volume(int8_t from, int8_t to) {
-    if(from == to) {
-        return;
-    }
-
-    int16_t step = ((int16_t)to - (int16_t)from);
-    if(step > 0) {
-        step = (step + AUDIO_PLAYER_VOLUME_RAMP_STEPS / 2) / AUDIO_PLAYER_VOLUME_RAMP_STEPS;
-        if(step == 0) step = 1;
-    } else {
-        step = (step - AUDIO_PLAYER_VOLUME_RAMP_STEPS / 2) / AUDIO_PLAYER_VOLUME_RAMP_STEPS;
-        if(step == 0) step = -1;
-    }
-
-    int16_t current = (int16_t)from;
-    for(int i = 0; i < AUDIO_PLAYER_VOLUME_RAMP_STEPS; i++) {
-        current += step;
-        if((step > 0 && current > to) || (step < 0 && current < to)) {
-            current = (int16_t)to;
-        }
-        pwm_audio_set_volume((int8_t)current);
-        vTaskDelay(pdMS_TO_TICKS(AUDIO_PLAYER_VOLUME_RAMP_MS));
-    }
-
-    pwm_audio_set_volume(to);
-}
-
 static esp_err_t audio_player_start_selected_file(void) {
     if(!g_player.has_file) {
         NuttySystemMonitor_setSystemTrayTempText("!! No file selected !!", 20);
@@ -715,26 +685,15 @@ static esp_err_t audio_player_start_selected_file(void) {
     g_player.dc_y1 = 0;
     g_player.fade_frames_remaining = AUDIO_PLAYER_FADE_FRAMES; /* ~5ms fade-in at 48kHz */
 
-    /* Ramp volume up from mute to target to avoid startup pop */
-    int8_t target_driver_vol = audio_player_to_driver_volume(g_player.volume);
-    audio_player_ramp_volume(0, target_driver_vol);
-
     NuttySystemMonitor_setSystemTrayTempText("!Playing...", 12);
     return ESP_OK;
 }
 
 static void audio_player_stop_current(bool disarm_loop) {
-    /* Ramp volume down to mute before stopping to avoid pop */
-    int8_t current_driver_vol = audio_player_to_driver_volume(g_player.volume);
-    audio_player_ramp_volume(current_driver_vol, 0);
-
     esp_err_t err = audio_player_stop();
     if(err != ESP_OK) {
         ESP_LOGW(TAG, "audio_player_stop failed: %s", esp_err_to_name(err));
     }
-
-    /* Restore volume for next playback */
-    pwm_audio_set_volume(current_driver_vol);
 
     g_player.play_request_in_flight = false;
     if(disarm_loop) {
@@ -790,10 +749,8 @@ static void nutty_main(void) {
 
     while(!exit_app) {
         if(ui.exit_requested) {
-            if(!g_player.bg_enabled) {
-                audio_player_stop_current(true);
-            }
-            exit_app = true;
+            /* Treat ESC key same as EXIT action to respect BG mode */
+            pending_action = AUDIO_PLAYER_ACTION_EXIT;
             ui.exit_requested = false;
         }
 
@@ -879,7 +836,35 @@ static void nutty_main(void) {
                     break;
                 }
                 case AUDIO_PLAYER_ACTION_EXIT: {
-                    if(!g_player.bg_enabled) {
+                    if(g_player.bg_enabled) {
+                        /* BG mode: destroy UI but keep task alive for auto-loop & crazy LEDs */
+                        audio_player_destroy_ui(&ui);
+                        NuttyApps_launchAppByIndex(0);
+                        ESP_LOGI(TAG, "BG mode: app UI exited, audio continues in background");
+                        /* Enter background loop — no UI, just keep audio alive */
+                        while(g_player.bg_enabled) {
+                            audio_player_handle_auto_loop();
+                            audio_player_update_crazy_leds();
+
+                            /* If audio finished and loop is off, exit BG mode */
+                            audio_player_state_t state = audio_player_get_state();
+                            if(state == AUDIO_PLAYER_STATE_IDLE && !g_player.loop_enabled) {
+                                ESP_LOGI(TAG, "BG: playback finished, exiting background mode");
+                                audio_player_set_crazy_enabled(false);
+                                g_player.bg_enabled = false;
+                                break;
+                            }
+
+                            vTaskDelay(pdMS_TO_TICKS(100));
+                        }
+                        /* Stop audio if still playing when BG exits */
+                        if(audio_player_get_state() == AUDIO_PLAYER_STATE_PLAYING) {
+                            audio_player_stop_current(true);
+                        }
+                        audio_player_set_crazy_enabled(false);
+                        /* BG loop finished — skip the normal exit cleanup since UI/menu already handled */
+                        return;
+                    } else {
                         audio_player_stop_current(true);
                         audio_player_set_crazy_enabled(false);
                     }

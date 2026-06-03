@@ -60,7 +60,8 @@ extern const uint8_t boot_icon_start[] asm("_binary_boot_icon_png_start");
 extern const uint8_t boot_icon_end[]   asm("_binary_boot_icon_png_end");
 
 void app_main(void) {
-    // Peripherals (GPIO, LEDC, I2C, GPIOISR)
+    // Peripherals (GPIO, LEDC, I2C, GPIOISR, ADC, FSPI, SDHot, NVS, PM)
+    ESP_ERROR_CHECK(nuttyPeripherals.initPM());
     ESP_ERROR_CHECK(nuttyPeripherals.initGPIO());
     ESP_ERROR_CHECK(nuttyPeripherals.initLEDC());
     ESP_ERROR_CHECK(nuttyPeripherals.initI2C());

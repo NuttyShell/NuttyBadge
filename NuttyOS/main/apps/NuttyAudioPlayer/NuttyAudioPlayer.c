@@ -19,10 +19,10 @@ static const char *TAG = "AudioPlayer";
 #define AUDIO_PLAYER_FADE_FRAMES 240U
 #define AUDIO_PLAYER_CRAZY_UPDATE_MS 30U
 #define AUDIO_PLAYER_VOLUME_MIN 0
-#define AUDIO_PLAYER_VOLUME_MAX 16
-#define AUDIO_PLAYER_VOLUME_STEP 1
-#define AUDIO_PLAYER_VOLUME_DEFAULT 12
-#define AUDIO_PLAYER_DRIVER_VOLUME_UNITY 16
+#define AUDIO_PLAYER_VOLUME_MAX 32
+#define AUDIO_PLAYER_VOLUME_STEP 2
+#define AUDIO_PLAYER_VOLUME_DEFAULT 24
+#define AUDIO_PLAYER_DRIVER_VOLUME_MAX 32
 
 typedef enum {
     AUDIO_PLAYER_ACTION_SELECT_FILE = 0,
@@ -134,13 +134,13 @@ static int8_t audio_player_clamp_volume(int8_t volume) {
 }
 
 static int8_t audio_player_to_driver_volume(int8_t ui_volume) {
-    /* Map UI volume: 0 = silent, AUDIO_PLAYER_VOLUME_MAX = loudest (unity)
-     * Driver 8-bit path: (s * volume) / 16, so volume=16 = unity gain.
-     * We linearly map ui_volume 0..16 → driver 0..16.
+    /* Map UI volume: 0 = silent, AUDIO_PLAYER_VOLUME_MAX = loudest (2x gain)
+     * Driver 8-bit path: (s * volume) / 16, so volume=16 = unity, volume=32 = 2x.
+     * We linearly map ui_volume 0..32 → driver 0..32.
      */
-    int16_t driver = ((int16_t)ui_volume * AUDIO_PLAYER_DRIVER_VOLUME_UNITY) / AUDIO_PLAYER_VOLUME_MAX;
-    if(driver > AUDIO_PLAYER_DRIVER_VOLUME_UNITY) {
-        driver = AUDIO_PLAYER_DRIVER_VOLUME_UNITY;
+    int16_t driver = ((int16_t)ui_volume * AUDIO_PLAYER_DRIVER_VOLUME_MAX) / AUDIO_PLAYER_VOLUME_MAX;
+    if(driver > AUDIO_PLAYER_DRIVER_VOLUME_MAX) {
+        driver = AUDIO_PLAYER_DRIVER_VOLUME_MAX;
     } else if(driver < 0) {
         driver = 0;
     }

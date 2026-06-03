@@ -350,14 +350,16 @@ static void IRDBFromSD() {
     }else{
         // Launch File Manager to select IRDB
         NuttySystemMonitor_setSystemTrayTempText("!Please select a file!", 30);
-        char *IRDBFilePath = malloc(1024);
+        size_t irdbFilePathSize = 1024;
+        char *IRDBFilePath = malloc(irdbFilePathSize);
         assert(IRDBFilePath != NULL);
-        memset(IRDBFilePath, 0x00, 1024);
+        memset(IRDBFilePath, 0x00, irdbFilePathSize);
         strcat(IRDBFilePath, SDCARD_MOUNT_POINT"/");
-        void *arg_list[2];
+        void *arg_list[3];
         arg_list[0] = xTaskGetCurrentTaskHandle();
         arg_list[1] = IRDBFilePath;
-        NuttyApps_launchParamedAppByName("File Manager", 2, arg_list);
+        arg_list[2] = &irdbFilePathSize;
+        NuttyApps_launchParamedAppByName("File Manager", 3, arg_list);
 
         xTaskNotifyWait(0x00, ULONG_MAX, NULL, portMAX_DELAY);
         ESP_LOGI(TAG, "Selection Completed: %s", IRDBFilePath);

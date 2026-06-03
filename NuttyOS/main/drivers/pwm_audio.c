@@ -376,12 +376,12 @@ esp_err_t pwm_audio_init(const pwm_audio_config_t *cfg)
 
     if (handle->config.gpio_num_left >= 0) {
         handle->ledc_channel[CHANNEL_LEFT_INDEX].channel = handle->config.ledc_channel_left;
-        handle->ledc_channel[CHANNEL_LEFT_INDEX].duty = 0;
+        handle->ledc_channel[CHANNEL_LEFT_INDEX].duty = 0; /**< duty=0 → pin LOW → N-MOS off → transistor off → no current through speaker (silent + power saving) */
         handle->ledc_channel[CHANNEL_LEFT_INDEX].gpio_num = handle->config.gpio_num_left;
         handle->ledc_channel[CHANNEL_LEFT_INDEX].speed_mode = LEDC_LOW_SPEED_MODE;
         handle->ledc_channel[CHANNEL_LEFT_INDEX].hpoint = 0;
         handle->ledc_channel[CHANNEL_LEFT_INDEX].timer_sel = handle->config.ledc_timer_sel;
-        handle->ledc_channel[CHANNEL_LEFT_INDEX].flags.output_invert = 1;
+        handle->ledc_channel[CHANNEL_LEFT_INDEX].flags.output_invert = 0; /**< no invert: low-side N-MOS circuit, LOW=off is the correct idle state */
         handle->ledc_channel[CHANNEL_LEFT_INDEX].intr_type = LEDC_INTR_DISABLE;
         res = ledc_channel_config(&handle->ledc_channel[CHANNEL_LEFT_INDEX]);
         PWM_AUDIO_CHECK(ESP_OK == res, "LEDC channel left configuration failed", ESP_ERR_INVALID_ARG);
@@ -661,6 +661,13 @@ esp_err_t pwm_audio_stop(void)
     res = gptimer_disable(g_gptimer);
     PWM_AUDIO_CHECK(res == ESP_OK, "gptimer disable failed", res);
     rb_flush(handle->ringbuf);  /**< flush ringbuf, avoid play noise */
+
+    /**< duty=0 → pin LOW → N-MOS off; avoids holding the last sample duty after stop */
+    ledc_set_duty(handle->ledc_channel[CHANNEL_LEFT_INDEX].speed_mode,
+                  handle->ledc_channel[CHANNEL_LEFT_INDEX].channel, 0);
+    ledc_update_duty(handle->ledc_channel[CHANNEL_LEFT_INDEX].speed_mode,
+                     handle->ledc_channel[CHANNEL_LEFT_INDEX].channel);
+
     handle->status = PWM_AUDIO_STATUS_IDLE;
     return ESP_OK;
 }
@@ -677,14 +684,16 @@ esp_err_t pwm_audio_deinit(void)
 
     for (size_t i = 0; i < PWM_AUDIO_CH_MAX; i++) {
         if (handle->ledc_channel[i].gpio_num >= 0) {
+            /**< idle_level=0, no invert → pin is driven LOW (0 V) → N-MOS off = silent + power saving */
             ledc_stop(handle->ledc_channel[i].speed_mode, handle->ledc_channel[i].channel, 0);
         }
     }
 
-    /**< set the channel gpios input mode */
+    /**< drive pins LOW explicitly; GPIO_MODE_INPUT leaves the line floating and picks up noise */
     for (size_t i = 0; i < PWM_AUDIO_CH_MAX; i++) {
         if (handle->ledc_channel[i].gpio_num >= 0) {
-            gpio_set_direction(handle->ledc_channel[i].gpio_num, GPIO_MODE_INPUT);
+            gpio_set_direction(handle->ledc_channel[i].gpio_num, GPIO_MODE_OUTPUT);
+            gpio_set_level(handle->ledc_channel[i].gpio_num, 0);
         }
     }
 

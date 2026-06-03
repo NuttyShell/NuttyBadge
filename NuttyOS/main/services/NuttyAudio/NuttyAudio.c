@@ -38,11 +38,11 @@ static void NuttyAudio_Worker(void *pvParameters) {
             while(playBufLoc != playBufSz) {
                 pwm_audio_write(playBuf + playBufLoc, playBufSz - playBufLoc, &bytesWritten, portMAX_DELAY);
                 playBufLoc += bytesWritten;
-                //ESP_LOGI(TAG, "Audio: Written = %u; Left=%u", bytesWritten, (playBufSz - playBufLoc));
+                ESP_LOGI(TAG, "Audio: Written = %u; Left=%u", bytesWritten, (playBufSz - playBufLoc));
             }
 
             pwmAudioStatus = PWM_AUDIO_STATUS_BUSY;
-            while(pwmAudioStatus == PWM_AUDIO_STATUS_BUSY) pwm_audio_get_status(&pwmAudioStatus);
+            while(pwmAudioStatus == PWM_AUDIO_STATUS_BUSY) { pwm_audio_get_status(&pwmAudioStatus); vTaskDelay(pdMS_TO_TICKS(3)); }
             
         }else if(playHz > 0) {
             // Play Tone

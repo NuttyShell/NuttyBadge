@@ -3153,6 +3153,17 @@ CONFIG_WL_SECTOR_SIZE=4096
 # end of Wear Levelling
 
 #
+# Audio playback
+#
+# default:
+CONFIG_AUDIO_PLAYER_ENABLE_MP3=y
+# default:
+CONFIG_AUDIO_PLAYER_ENABLE_WAV=y
+# default:
+CONFIG_AUDIO_PLAYER_LOG_LEVEL=0
+# end of Audio playback
+
+#
 # LVGL configuration
 #
 CONFIG_LV_CONF_SKIP=y

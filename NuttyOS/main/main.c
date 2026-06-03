@@ -29,6 +29,8 @@
 #include "apps/NuttyShooter/NuttyShooter.h"
 #include "apps/NuttyTest/NuttyTest.h"
 #include "apps/NuttySnake/NuttySnake.h"
+#include "apps/NuttyBird/NuttyBird.h"
+#include "apps/NutNutRevolution/NutNutRevolution.h"
 #include "apps/NuttyAudioPlayer/NuttyAudioPlayer.h"
 #include "apps/NuttyRemote/NuttyRemote.h"
 #include "apps/NuttyRF/NuttyRF.h"
@@ -143,6 +145,8 @@ void app_main(void) {
     NuttyApps_registerApp(NuttyMinesweeper);
     NuttyApps_registerApp(NuttyShooter);
     NuttyApps_registerApp(NuttySnake);
+    NuttyApps_registerApp(NuttyBird);
+    NuttyApps_registerApp(NutNutRevolution);
     NuttyApps_registerApp(NuttyAudioPlayer);
     NuttyApps_registerApp(NuttyRemote);
     NuttyApps_registerApp(NuttyRF);

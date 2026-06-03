@@ -251,7 +251,7 @@ static void nutty_main(void) {
         if(playFinished) {
             NuttyAudio_PlayBuffer(chipi_48k_start, 634468);
         }
-        NuttyAudio_SetVolume(16);
+        NuttyAudio_SetVolume(32);
         while(!NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_A)) vTaskDelay(pdMS_TO_TICKS(10));
         NuttyAudio_StopPlaying();
         ESP_LOGI(TAG, "Stopped playing audio...");

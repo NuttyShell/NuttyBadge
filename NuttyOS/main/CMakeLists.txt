@@ -33,6 +33,7 @@ idf_component_register(
                     SRCS "apps/NuttyBTRemote/NuttyBTRemote.c"
                     SRCS "apps/NuttyCounter/NuttyCounter.c"
                     SRCS "apps/NuttyBTScanner/NuttyBTScanner.c"
+                    SRCS "apps/NuttyBTPresenter/NuttyBTPresenter.c"
                     SRCS "apps/NuttyStopwatch/NuttyStopwatch.c"
                     SRCS "apps/NuttyFileManager/NuttyFileManager.c"
                     SRCS "apps/NuttySettings/NuttySettings.c"

@@ -4,6 +4,7 @@
 #include <esp_err.h>
 #include <esp_check.h>
 #include <string.h>
+#include "esp32/pm.h"
 #include "driver/i2c_master.h"
 #include "driver/ledc.h"
 #include "driver/gpio.h"
@@ -49,6 +50,7 @@ typedef struct _NuttyPeripherals {
     NuttyPeripheralsInitFunc initSDHost;
     NuttyPeripheralsInitSDCardFunc initSDCard;
     NuttyPeripheralsInitFunc initNVS;
+    NuttyPeripheralsInitFunc initPM;
 } NuttyPeripherals;
 extern NuttyPeripherals nuttyPeripherals;
 

@@ -261,6 +261,15 @@ static esp_err_t initNVS() {
     return err;
 }
 
+static esp_err_t initPM() {
+    esp_pm_config_esp32_t pm_config = {
+        .max_freq_mhz = 160,
+        .min_freq_mhz = 80,
+        .light_sleep_enable = true
+    };
+    return esp_pm_configure(&pm_config);
+}
+
 NuttyPeripherals nuttyPeripherals = {
     .initLEDC = initLEDC,
     .initI2C = initI2C,
@@ -276,6 +285,7 @@ NuttyPeripherals nuttyPeripherals = {
     .readADC = readADC,
     .initSDHost = initSDHost,
     .initSDCard = initSDCard,
-    .initNVS = initNVS
+    .initNVS = initNVS,
+    .initPM = initPM
 };
 

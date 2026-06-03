@@ -21,7 +21,8 @@ static const char *TAG = "AudioPlayer";
 #define AUDIO_PLAYER_VOLUME_MIN 0
 #define AUDIO_PLAYER_VOLUME_MAX 16
 #define AUDIO_PLAYER_VOLUME_STEP 1
-#define AUDIO_PLAYER_VOLUME_DEFAULT 0
+#define AUDIO_PLAYER_VOLUME_DEFAULT 12
+#define AUDIO_PLAYER_DRIVER_VOLUME_UNITY 16
 
 typedef enum {
     AUDIO_PLAYER_ACTION_SELECT_FILE = 0,
@@ -133,20 +134,21 @@ static int8_t audio_player_clamp_volume(int8_t volume) {
 }
 
 static int8_t audio_player_to_driver_volume(int8_t ui_volume) {
-    int16_t driver = (int16_t)AUDIO_PLAYER_VOLUME_MAX - ((int16_t)ui_volume * 2);
-    if(driver > AUDIO_PLAYER_VOLUME_MAX) {
-        driver = AUDIO_PLAYER_VOLUME_MAX;
-    } else if(driver < -AUDIO_PLAYER_VOLUME_MAX) {
-        driver = -AUDIO_PLAYER_VOLUME_MAX;
+    /* Map UI volume: 0 = silent, AUDIO_PLAYER_VOLUME_MAX = loudest (unity)
+     * Driver 8-bit path: (s * volume) / 16, so volume=16 = unity gain.
+     * We linearly map ui_volume 0..16 → driver 0..16.
+     */
+    int16_t driver = ((int16_t)ui_volume * AUDIO_PLAYER_DRIVER_VOLUME_UNITY) / AUDIO_PLAYER_VOLUME_MAX;
+    if(driver > AUDIO_PLAYER_DRIVER_VOLUME_UNITY) {
+        driver = AUDIO_PLAYER_DRIVER_VOLUME_UNITY;
+    } else if(driver < 0) {
+        driver = 0;
     }
     return (int8_t)driver;
 }
 
 static void audio_player_apply_volume(int8_t volume, bool notify) {
     int8_t clamped = audio_player_clamp_volume(volume);
-    if(clamped == g_player.volume) {
-        return;
-    }
 
     int8_t driver_volume = audio_player_to_driver_volume(clamped);
     esp_err_t err = pwm_audio_set_volume(driver_volume);
@@ -212,8 +214,18 @@ static esp_err_t audio_player_output_reconfig(uint32_t rate, uint32_t bits_cfg, 
         return ESP_ERR_NOT_SUPPORTED;
     }
 
-    g_player.sample_rate = rate;
     g_player.input_channels = (ch == I2S_SLOT_MODE_MONO) ? 1U : 2U;
+
+    /* Skip reconfiguration if sample rate unchanged and pwm is already running */
+    if(g_player.sample_rate == rate) {
+        pwm_audio_status_t st = PWM_AUDIO_STATUS_UN_INIT;
+        pwm_audio_get_status(&st);
+        if(st == PWM_AUDIO_STATUS_BUSY) {
+            return ESP_OK;
+        }
+    }
+
+    g_player.sample_rate = rate;
 
     esp_err_t err = pwm_audio_stop();
     if(err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
@@ -231,6 +243,15 @@ static esp_err_t audio_player_output_reconfig(uint32_t rate, uint32_t bits_cfg, 
         ESP_LOGE(TAG, "pwm_audio_start failed: %s", esp_err_to_name(err));
         return err;
     }
+
+    /* Re-apply volume after restart */
+    int8_t driver_volume = audio_player_to_driver_volume(g_player.volume);
+    pwm_audio_set_volume(driver_volume);
+
+    /* Reset fade-in to avoid pop on reconfig */
+    g_player.dc_x1 = 0;
+    g_player.dc_y1 = 0;
+    g_player.fade_frames_remaining = AUDIO_PLAYER_FADE_FRAMES;
 
     return ESP_OK;
 }
@@ -371,10 +392,27 @@ static esp_err_t audio_player_backend_init(void) {
         return ESP_OK;
     }
 
-    esp_err_t err = pwm_audio_set_param(48000, LEDC_TIMER_8_BIT, 1);
-    if(err != ESP_OK) {
-        ESP_LOGW(TAG, "Initial PWM audio parameter setup failed: %s", esp_err_to_name(err));
+    /* Ensure pwm_audio is running with correct parameters */
+    pwm_audio_status_t st = PWM_AUDIO_STATUS_UN_INIT;
+    pwm_audio_get_status(&st);
+
+    if(st == PWM_AUDIO_STATUS_IDLE) {
+        esp_err_t err = pwm_audio_set_param(48000, LEDC_TIMER_8_BIT, 1);
+        if(err != ESP_OK) {
+            ESP_LOGW(TAG, "pwm_audio_set_param failed: %s", esp_err_to_name(err));
+        }
+        err = pwm_audio_start();
+        if(err != ESP_OK) {
+            ESP_LOGW(TAG, "pwm_audio_start failed: %s", esp_err_to_name(err));
+        }
+    } else if(st == PWM_AUDIO_STATUS_BUSY) {
+        /* Already running — the clk_set_fn callback will handle reconfig as needed */
+        ESP_LOGI(TAG, "pwm_audio already running, will reconfig via callback");
     }
+
+    /* Apply volume before first playback */
+    int8_t driver_volume = audio_player_to_driver_volume(g_player.volume);
+    pwm_audio_set_volume(driver_volume);
 
     audio_player_config_t config = {
         .mute_fn = NULL,
@@ -387,7 +425,7 @@ static esp_err_t audio_player_backend_init(void) {
         .write_ctx = NULL,
     };
 
-    err = audio_player_new(config);
+    esp_err_t err = audio_player_new(config);
     if(err != ESP_OK) {
         ESP_LOGE(TAG, "audio_player_new failed: %s", esp_err_to_name(err));
         return err;
@@ -395,7 +433,7 @@ static esp_err_t audio_player_backend_init(void) {
 
     g_player.backend_ready = true;
 
-    /* Crank the volume to max (0 = loudest in UI) */
+    /* Set initial volume (UI default = loud enough to hear) */
     audio_player_apply_volume(AUDIO_PLAYER_VOLUME_DEFAULT, false);
 
     return ESP_OK;
@@ -647,15 +685,56 @@ static esp_err_t audio_player_start_selected_file(void) {
     g_player.dc_y1 = 0;
     g_player.fade_frames_remaining = AUDIO_PLAYER_FADE_FRAMES; /* ~5ms fade-in at 48kHz */
 
+    /* Ramp volume up from mute to target to avoid startup pop */
+    int8_t target_driver_vol = audio_player_to_driver_volume(g_player.volume);
+    audio_player_ramp_volume(0, target_driver_vol);
+
     NuttySystemMonitor_setSystemTrayTempText("!Playing...", 12);
     return ESP_OK;
 }
 
+#define AUDIO_PLAYER_VOLUME_RAMP_STEPS 8
+#define AUDIO_PLAYER_VOLUME_RAMP_MS   2
+
+static void audio_player_ramp_volume(int8_t from, int8_t to) {
+    if(from == to) {
+        return;
+    }
+
+    int16_t step = ((int16_t)to - (int16_t)from);
+    if(step > 0) {
+        step = (step + AUDIO_PLAYER_VOLUME_RAMP_STEPS / 2) / AUDIO_PLAYER_VOLUME_RAMP_STEPS;
+        if(step == 0) step = 1;
+    } else {
+        step = (step - AUDIO_PLAYER_VOLUME_RAMP_STEPS / 2) / AUDIO_PLAYER_VOLUME_RAMP_STEPS;
+        if(step == 0) step = -1;
+    }
+
+    int16_t current = (int16_t)from;
+    for(int i = 0; i < AUDIO_PLAYER_VOLUME_RAMP_STEPS; i++) {
+        current += step;
+        if((step > 0 && current > to) || (step < 0 && current < to)) {
+            current = (int16_t)to;
+        }
+        pwm_audio_set_volume((int8_t)current);
+        vTaskDelay(pdMS_TO_TICKS(AUDIO_PLAYER_VOLUME_RAMP_MS));
+    }
+
+    pwm_audio_set_volume(to);
+}
+
 static void audio_player_stop_current(bool disarm_loop) {
+    /* Ramp volume down to mute before stopping to avoid pop */
+    int8_t current_driver_vol = audio_player_to_driver_volume(g_player.volume);
+    audio_player_ramp_volume(current_driver_vol, 0);
+
     esp_err_t err = audio_player_stop();
     if(err != ESP_OK) {
         ESP_LOGW(TAG, "audio_player_stop failed: %s", esp_err_to_name(err));
     }
+
+    /* Restore volume for next playback */
+    pwm_audio_set_volume(current_driver_vol);
 
     g_player.play_request_in_flight = false;
     if(disarm_loop) {

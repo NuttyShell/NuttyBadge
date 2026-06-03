@@ -33,6 +33,7 @@ static void NuttyAudio_Worker(void *pvParameters) {
         if(playHz == 0 && playBuf != NULL && playBufLoc != playBufSz) {
             // Play Buffer
             pwm_audio_reset_freq();
+            pwm_audio_set_param(48000, 8, 1); /**< re-assert 8-bit format; another consumer (e.g. NuttyAudioPlayer) may have changed bits_per_sample to 16 */
             ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0);
             ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
             esp_err_t err;
@@ -67,12 +68,12 @@ esp_err_t NuttyAudio_Init() {
     esp_err_t err = ESP_OK;
     ESP_LOGI(TAG, "Init...");
     pwm_audio_config_t pac;
-    pac.duty_resolution    = LEDC_TIMER_8_BIT;
+    pac.duty_resolution    = LEDC_TIMER_10_BIT;
     pac.gpio_num_left      = GPIO_AUDIO_OUT;
     pac.gpio_num_right      = -1;
     pac.ledc_channel_left  = LEDC_CHANNEL_1;
     pac.ledc_timer_sel     = LEDC_TIMER_2;
-    pac.ringbuf_len        = 1024 * 4;
+    pac.ringbuf_len        = 1024 * 8;
 
     err = pwm_audio_init(&pac);             /**< Initialize pwm audio */
     ESP_ERROR_CHECK(err);

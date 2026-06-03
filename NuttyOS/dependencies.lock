@@ -1,4 +1,28 @@
 dependencies:
+  chmorgan/esp-audio-player:
+    component_hash: a19dba40c076e59baaf6383041b6feeb25135dbc5a5b8bcc6b497d8d947095c6
+    dependencies:
+    - name: chmorgan/esp-libhelix-mp3
+      registry_url: https://components.espressif.com
+      require: private
+      version: '>=1.0.0,<2.0.0'
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.1.0
+  chmorgan/esp-libhelix-mp3:
+    component_hash: cbb76089dc2c5749f7b470e2e70aedc44c9da519e04eb9a67d4c7ec275229e53
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.1.0'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.0.3
   idf:
     source:
       type: idf
@@ -11,8 +35,9 @@ dependencies:
       type: service
     version: 8.4.0
 direct_dependencies:
+- chmorgan/esp-audio-player
 - idf
 - lvgl/lvgl
-manifest_hash: 43974a7e000c484460a5eed62a16764e1a714ce67bab59e57364397601c0bfd4
+manifest_hash: ef15fb27fe09991374295ab0b0b29f347248f602992220456951a480d642d8c6
 target: esp32s3
 version: 3.0.0

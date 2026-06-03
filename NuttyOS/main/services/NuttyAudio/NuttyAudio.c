@@ -35,10 +35,11 @@ static void NuttyAudio_Worker(void *pvParameters) {
             pwm_audio_reset_freq();
             ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1, 0);
             ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_1);
+            esp_err_t err;
             while(playBufLoc != playBufSz) {
-                pwm_audio_write(playBuf + playBufLoc, playBufSz - playBufLoc, &bytesWritten, portMAX_DELAY);
+                err = pwm_audio_write(playBuf + playBufLoc, playBufSz - playBufLoc, &bytesWritten, portMAX_DELAY);
                 playBufLoc += bytesWritten;
-                ESP_LOGI(TAG, "Audio: Written = %u; Left=%u", bytesWritten, (playBufSz - playBufLoc));
+                ESP_LOGI(TAG, "Audio: Written = %u; Left=%u, ret=%d", bytesWritten, (playBufSz - playBufLoc), err);
             }
 
             pwmAudioStatus = PWM_AUDIO_STATUS_BUSY;

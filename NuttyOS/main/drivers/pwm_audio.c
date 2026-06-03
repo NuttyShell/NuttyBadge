@@ -529,8 +529,16 @@ esp_err_t IRAM_ATTR pwm_audio_write(uint8_t *inbuf, size_t inbuf_len, size_t *by
             bytes_can_write &= 0xfffffffc;/**< Aligned data, bytes_can_write should be an integral multiple of 4 */
 
             if (0 == bytes_can_write) {
-                *bytes_written += inbuf_len;  /**< Discard the last misaligned bytes of data directly */
-                return ESP_OK;
+                if (inbuf_len < 4) {
+                    *bytes_written += inbuf_len;  /**< Discard the final 1-3 misaligned tail bytes */
+                    return ESP_OK;
+                }
+                /**< free < 4 but inbuf_len >= 4: ringbuf nearly full, not a tail-end condition.
+                 *   Without this continue, bytes_can_write=0 causes the entire remaining buffer
+                 *   (potentially hundreds of KB) to be discarded and falsely counted as written —
+                 *   the root cause of the "Written=N; Left=0 but no audio" race condition.
+                 *   Wait for the ISR to drain enough space before retrying. */
+                continue;
             }
 
             /**< Get the difference between PWM resolution and audio samplewidth */

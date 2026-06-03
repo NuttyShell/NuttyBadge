@@ -58,10 +58,10 @@ static void NuttyDisplay_Worker(void* arg) {
             xEventGroupClearBits(lcdUpdateFlag, LCD_UPDATED_BIT);
         }
         if (xSemaphoreTake(lvglLock, portMAX_DELAY) == pdTRUE) {
-            lv_timer_handler_run_in_period(10);
+            lv_timer_handler_run_in_period(15); // 66fps
             xSemaphoreGive(lvglLock);
        }
-       vTaskDelay(pdMS_TO_TICKS(10));
+       vTaskDelay(pdMS_TO_TICKS(15)); // 66fps
     }
 }
 
@@ -238,7 +238,10 @@ void NuttyDisplay_clearSystemTrayArea() {
 }
 
 void NuttyDisplay_setLCDBacklight(uint8_t percentage) {
+    // Need to accquire lcdLock as this requires switching DC pin and require exclusive access to LCD (and SPI bus)
+    while(xSemaphoreTake(lcdLock, portMAX_DELAY) != pdTRUE);
     nuttyDriverLCD.setBacklightDutyCycle(percentage << 1);
+    xSemaphoreGive(lcdLock);
 }
 
 esp_err_t NuttyDisplay_Init() {

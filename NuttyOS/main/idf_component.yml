@@ -1,7 +1,7 @@
 ## IDF Component Manager Manifest File
 dependencies:
   lvgl/lvgl: ^8.4.0
-  "chmorgan/esp-audio-player": ^1.1.0
+  chmorgan/esp-audio-player: ^1.1.0
   ## Required IDF version
   idf:
     version: '>=6.0.1'
@@ -16,3 +16,4 @@ dependencies:
   #   # `public` flag doesn't have an effect dependencies of the `main` component.
   #   # All dependencies of `main` are public by default.
   #   public: true
+  espressif/esp_tinyusb: '2.2.0'

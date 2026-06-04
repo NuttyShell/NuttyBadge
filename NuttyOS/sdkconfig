@@ -3164,6 +3164,126 @@ CONFIG_AUDIO_PLAYER_LOG_LEVEL=0
 # end of Audio playback
 
 #
+# TinyUSB Stack
+#
+# default:
+CONFIG_TINYUSB_DEBUG_LEVEL=1
+
+#
+# TinyUSB DCD
+#
+# default:
+# CONFIG_TINYUSB_MODE_SLAVE is not set
+# default:
+CONFIG_TINYUSB_MODE_DMA=y
+# end of TinyUSB DCD
+
+#
+# TinyUSB callbacks
+#
+# default:
+# CONFIG_TINYUSB_SUSPEND_CALLBACK is not set
+# default:
+# CONFIG_TINYUSB_RESUME_CALLBACK is not set
+# end of TinyUSB callbacks
+
+#
+# Descriptor configuration
+#
+
+#
+# You can provide your custom descriptors via tinyusb_driver_install()
+#
+# default:
+CONFIG_TINYUSB_DESC_USE_ESPRESSIF_VID=y
+# default:
+CONFIG_TINYUSB_DESC_USE_DEFAULT_PID=y
+# default:
+CONFIG_TINYUSB_DESC_BCD_DEVICE=0x0100
+# default:
+CONFIG_TINYUSB_DESC_MANUFACTURER_STRING="Espressif Systems"
+# default:
+CONFIG_TINYUSB_DESC_PRODUCT_STRING="Espressif Device"
+# default:
+CONFIG_TINYUSB_DESC_SERIAL_STRING="123456"
+# default:
+CONFIG_TINYUSB_DESC_MSC_STRING="Espressif MSC Device"
+# end of Descriptor configuration
+
+#
+# Mass Storage Class (MSC)
+#
+CONFIG_TINYUSB_MSC_ENABLED=y
+# default:
+CONFIG_TINYUSB_MSC_BUFSIZE=512
+# default:
+CONFIG_TINYUSB_MSC_MOUNT_PATH="/data"
+# end of Mass Storage Class (MSC)
+
+#
+# Communication Device Class (CDC)
+#
+# default:
+# CONFIG_TINYUSB_CDC_ENABLED is not set
+# end of Communication Device Class (CDC)
+
+#
+# Musical Instrument Digital Interface (MIDI)
+#
+# default:
+CONFIG_TINYUSB_MIDI_COUNT=0
+# end of Musical Instrument Digital Interface (MIDI)
+
+#
+# Human Interface Device Class (HID)
+#
+# default:
+CONFIG_TINYUSB_HID_COUNT=0
+# end of Human Interface Device Class (HID)
+
+#
+# Device Firmware Upgrade (DFU)
+#
+# default:
+# CONFIG_TINYUSB_DFU_MODE_DFU is not set
+# default:
+# CONFIG_TINYUSB_DFU_MODE_DFU_RUNTIME is not set
+# default:
+CONFIG_TINYUSB_DFU_MODE_NONE=y
+# end of Device Firmware Upgrade (DFU)
+
+#
+# Bluetooth Host Class (BTH)
+#
+# default:
+# CONFIG_TINYUSB_BTH_ENABLED is not set
+# end of Bluetooth Host Class (BTH)
+
+#
+# Network driver (ECM/NCM/RNDIS)
+#
+# CONFIG_TINYUSB_NET_MODE_ECM_RNDIS is not set
+CONFIG_TINYUSB_NET_MODE_NCM=y
+# CONFIG_TINYUSB_NET_MODE_NONE is not set
+# default:
+CONFIG_TINYUSB_NCM_OUT_NTB_BUFFS_COUNT=3
+# default:
+CONFIG_TINYUSB_NCM_IN_NTB_BUFFS_COUNT=3
+# default:
+CONFIG_TINYUSB_NCM_OUT_NTB_BUFF_MAX_SIZE=3200
+# default:
+CONFIG_TINYUSB_NCM_IN_NTB_BUFF_MAX_SIZE=3200
+# end of Network driver (ECM/NCM/RNDIS)
+
+#
+# Vendor Specific Interface
+#
+# default:
+CONFIG_TINYUSB_VENDOR_COUNT=0
+# end of Vendor Specific Interface
+# end of TinyUSB Stack
+
+#
 # LVGL configuration
 #
 CONFIG_LV_CONF_SKIP=y

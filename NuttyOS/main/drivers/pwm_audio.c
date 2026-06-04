@@ -311,6 +311,8 @@ esp_err_t pwm_audio_get_param(int *rate, int *bits, int *ch)
 void pwm_audio_reset_freq() {
     // FIXME: Use 8-bit first
     uint32_t freq = (APB_CLK_FREQ / (1 << g_pwm_audio_handle->ledc_timer.duty_resolution));
+
+    freq = 78000;
     
     ESP_LOGI(TAG, "Using FREQ: %lu, res=%d", freq, g_pwm_audio_handle->ledc_timer.duty_resolution);
     g_pwm_audio_handle->ledc_timer.freq_hz = freq - (freq % 1000); // fixed PWM frequency ,It's a multiple of 1000
@@ -439,7 +441,12 @@ esp_err_t pwm_audio_set_param(int rate, ledc_timer_bit_t bits, int ch)
 {
     esp_err_t res = ESP_OK;
 
-    PWM_AUDIO_CHECK(g_pwm_audio_handle->status != PWM_AUDIO_STATUS_BUSY, PWM_AUDIO_STATUS_ERROR, ESP_ERR_INVALID_ARG);
+    /* Allow reconfiguration while BUSY: flush the ringbuf so the ISR doesn't
+     * read stale data formatted for the old bits_per_sample.  The ISR itself
+     * only uses duty_resolution (unchanged here), so there is no ISR-safety issue. */
+    if (g_pwm_audio_handle->status == PWM_AUDIO_STATUS_BUSY) {
+        rb_flush(g_pwm_audio_handle->ringbuf);
+    }
     PWM_AUDIO_CHECK(rate <= SAMPLE_RATE_MAX && rate >= SAMPLE_RATE_MIN, PWM_AUDIO_FRAMERATE_ERROR, ESP_ERR_INVALID_ARG);
     PWM_AUDIO_CHECK(bits == 32 || bits == 16 || bits == 8, " Unsupported Bit width, only support 8, 16, 32", ESP_ERR_INVALID_ARG);
     PWM_AUDIO_CHECK(ch == 1, "Unsupported channel number, only support mono for NuttyBadge", ESP_ERR_INVALID_ARG);
@@ -526,6 +533,16 @@ esp_err_t IRAM_ATTR pwm_audio_write(uint8_t *inbuf, size_t inbuf_len, size_t *by
                 bytes_can_write = free;
             }
 
+            /**< For case 8 + duty_resolution > 8: each input byte expands to 2 ringbuf bytes.
+             *   Cap to free/2 so the ringbuf cannot overflow (without this, the first write on
+             *   an empty 8192-byte ringbuf tries to write 16376 bytes, silently dropping half). */
+            if (handle->bits_per_sample == 8 && handle->config.duty_resolution > 8) {
+                uint32_t expansion_cap = free >> 1;
+                if (bytes_can_write > expansion_cap) {
+                    bytes_can_write = expansion_cap;
+                }
+            }
+
             bytes_can_write &= 0xfffffffc;/**< Aligned data, bytes_can_write should be an integral multiple of 4 */
 
             if (0 == bytes_can_write) {
@@ -547,15 +564,30 @@ esp_err_t IRAM_ATTR pwm_audio_write(uint8_t *inbuf, size_t inbuf_len, size_t *by
 
             switch (handle->bits_per_sample) {
             case 8: {
-                for (size_t i = 0; i < len; i++) {
-                    int32_t s = (int32_t)inbuf[i] - 128;   // center to signed
-                    s = (s * handle->volume) / 16;         // 16 = unity, 32 = 2x
-                    s += 128;                              // back to unsigned duty
-
-                    if (s < 0)   s = 0;
-                    if (s > 255) s = 255;
-
-                    rb_write_byte(rb, (uint8_t)s);
+                if (handle->config.duty_resolution > 8) {
+                    /**< Upscale 8-bit [0,255] to duty_resolution bits by left-shifting,
+                     *   then write 2-byte little-endian so ISR reads it like case 16.
+                     *   e.g. 10-bit: 128 (silence) → 128<<2=512 (exact 10-bit midpoint). */
+                    const int upshift = handle->config.duty_resolution - 8;
+                    for (size_t i = 0; i < len; i++) {
+                        int32_t s = (int32_t)inbuf[i] - 128;
+                        s = (s * handle->volume) / 32;
+                        s += 128;
+                        if (s < 0)   s = 0;
+                        if (s > 255) s = 255;
+                        uint16_t duty = (uint16_t)(uint8_t)s << upshift;
+                        rb_write_byte(rb, (uint8_t)duty);
+                        rb_write_byte(rb, (uint8_t)(duty >> 8));
+                    }
+                } else {
+                    for (size_t i = 0; i < len; i++) {
+                        int32_t s = (int32_t)inbuf[i] - 128;
+                        s = (s * handle->volume) / 32;
+                        s += 128;
+                        if (s < 0)   s = 0;
+                        if (s > 255) s = 255;
+                        rb_write_byte(rb, (uint8_t)s);
+                    }
                 }
             }
             break;
@@ -563,14 +595,14 @@ esp_err_t IRAM_ATTR pwm_audio_write(uint8_t *inbuf, size_t inbuf_len, size_t *by
             case 16: {
                 len >>= 1;
                 uint16_t *buf_16b = (uint16_t *)inbuf;
-                static uint16_t value_16b;
+                uint16_t value_16b;
                 int16_t temp;
 
                 if (handle->config.duty_resolution > 8) {
                     for (size_t i = 0; i < len; i++) {
                         temp = buf_16b[i];
-                        temp = temp * handle->volume / MAX_VOLUME;
-                        value_16b = temp + 0x7fff; /**< offset */
+                        temp = temp * handle->volume / 32;
+                        value_16b = (uint16_t)(temp + 0x8000); /**< offset: maps -32768→0, 0→32768, 32767→65535 */
                         value_16b >>= shift;
                         rb_write_byte(rb, value_16b);
                         rb_write_byte(rb, value_16b >> 8);
@@ -581,8 +613,8 @@ esp_err_t IRAM_ATTR pwm_audio_write(uint8_t *inbuf, size_t inbuf_len, size_t *by
                      */
                     for (size_t i = 0; i < len; i++) {
                         temp = buf_16b[i];
-                        temp = temp * handle->volume / MAX_VOLUME;
-                        value_16b = temp + 0x7fff; /**< offset */
+                        temp = temp * handle->volume / 32;
+                        value_16b = (uint16_t)(temp + 0x8000); /**< offset */
                         value_16b >>= shift;
                         rb_write_byte(rb, value_16b);
                     }
@@ -599,8 +631,8 @@ esp_err_t IRAM_ATTR pwm_audio_write(uint8_t *inbuf, size_t inbuf_len, size_t *by
                 if (handle->config.duty_resolution > 8) {
                     for (size_t i = 0; i < len; i++) {
                         temp = buf_32b[i];
-                        temp = temp * handle->volume / MAX_VOLUME;
-                        value = temp + 0x7fffffff; /**< offset */
+                        temp = temp * handle->volume / 32;
+                        value = (uint32_t)temp + 0x80000000u; /**< offset: maps INT32_MIN→0, 0→0x80000000, INT32_MAX→0xFFFFFFFF */
                         value >>= shift;
                         rb_write_byte(rb, value);
                         rb_write_byte(rb, value >> 8);
@@ -611,8 +643,8 @@ esp_err_t IRAM_ATTR pwm_audio_write(uint8_t *inbuf, size_t inbuf_len, size_t *by
                      */
                     for (size_t i = 0; i < len; i++) {
                         temp = buf_32b[i];
-                        temp = temp * handle->volume / MAX_VOLUME;
-                        value = temp + 0x7fffffff; /**< offset */
+                        temp = temp * handle->volume / 32;
+                        value = (uint32_t)temp + 0x80000000u; /**< offset */
                         value >>= shift;
                         rb_write_byte(rb, value);
                     }

@@ -15,6 +15,7 @@
 #include "drivers/ir.h"
 #include "drivers/sdcard.h"
 #include "drivers/kv.h"
+#include "drivers/usb.h"
 
 #include "services/NuttyAudio/NuttyAudio.h"
 #include "services/NuttyInput/NuttyInput.h"
@@ -36,9 +37,9 @@
 #include "apps/NuttyRF/NuttyRF.h"
 #include "apps/NuttyRGBControl/NuttyRGBControl.h"
 #include "apps/NuttyWifiScanner/NuttyWifiScanner.h"
-#include "apps/NuttyBTRemote/NuttyBTRemote.h"
 #include "apps/NuttyCounter/NuttyCounter.h"
 #include "apps/NuttyBTScanner/NuttyBTScanner.h"
+#include "apps/NuttyBTPresenter/NuttyBTPresenter.h"
 #include "apps/NuttyStopwatch/NuttyStopwatch.h"
 #include "apps/NuttyFileManager/NuttyFileManager.h"
 #include "apps/NuttySettings/NuttySettings.h"
@@ -76,6 +77,7 @@ void app_main(void) {
     // Nutty Drivers (IOE, LCD)
     ESP_ERROR_CHECK(nuttyDriverIOE.initIOE());
     ESP_ERROR_CHECK(nuttyDriverLCD.initLCD());
+    ESP_ERROR_CHECK(nuttyDriverUSB.initUSB());
 
     // We should able to control the LCD now
     NuttyDisplay_Init();
@@ -152,9 +154,9 @@ void app_main(void) {
     NuttyApps_registerApp(NuttyRF);
     NuttyApps_registerApp(NuttyRGBControl);
     NuttyApps_registerApp(NuttyWifiScanner);
-    NuttyApps_registerApp(NuttyBTRemote);
     NuttyApps_registerApp(NuttyCounter);
     NuttyApps_registerApp(NuttyBTScanner);
+    NuttyApps_registerApp(NuttyBTPresenter);
     NuttyApps_registerApp(NuttyStopwatch);
     NuttyApps_registerParamedApp(NuttyFileManager);
     NuttyApps_registerApp(NuttySettings);

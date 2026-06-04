@@ -19,10 +19,10 @@ static const char *TAG = "AudioPlayer";
 #define AUDIO_PLAYER_FADE_FRAMES 240U
 #define AUDIO_PLAYER_CRAZY_UPDATE_MS 30U
 #define AUDIO_PLAYER_VOLUME_MIN 0
-#define AUDIO_PLAYER_VOLUME_MAX 32
-#define AUDIO_PLAYER_VOLUME_STEP 2
-#define AUDIO_PLAYER_VOLUME_DEFAULT 24
-#define AUDIO_PLAYER_DRIVER_VOLUME_MAX 32
+#define AUDIO_PLAYER_VOLUME_MAX 64
+#define AUDIO_PLAYER_VOLUME_STEP 4
+#define AUDIO_PLAYER_VOLUME_DEFAULT 32
+#define AUDIO_PLAYER_DRIVER_VOLUME_MAX 48
 
 typedef enum {
     AUDIO_PLAYER_ACTION_SELECT_FILE = 0,
@@ -134,9 +134,9 @@ static int8_t audio_player_clamp_volume(int8_t volume) {
 }
 
 static int8_t audio_player_to_driver_volume(int8_t ui_volume) {
-    /* Map UI volume: 0 = silent, AUDIO_PLAYER_VOLUME_MAX = loudest (2x gain)
-     * Driver 8-bit path: (s * volume) / 16, so volume=16 = unity, volume=32 = 2x.
-     * We linearly map ui_volume 0..32 → driver 0..32.
+    /* Map UI volume: 0 = silent, AUDIO_PLAYER_VOLUME_MAX = loudest.
+     * Driver 16-bit path: (temp * volume) / MAX_VOLUME (MAX_VOLUME=48), so volume=48 = unity.
+     * We linearly map ui_volume 0..48 → driver 0..48 
      */
     int16_t driver = ((int16_t)ui_volume * AUDIO_PLAYER_DRIVER_VOLUME_MAX) / AUDIO_PLAYER_VOLUME_MAX;
     if(driver > AUDIO_PLAYER_DRIVER_VOLUME_MAX) {
@@ -232,7 +232,7 @@ static esp_err_t audio_player_output_reconfig(uint32_t rate, uint32_t bits_cfg, 
         ESP_LOGW(TAG, "pwm_audio_stop failed: %s", esp_err_to_name(err));
     }
 
-    err = pwm_audio_set_param((int)rate, LEDC_TIMER_8_BIT, 1);
+    err = pwm_audio_set_param((int)rate, 16, 1);
     if(err != ESP_OK) {
         ESP_LOGE(TAG, "pwm_audio_set_param failed: %s", esp_err_to_name(err));
         return err;
@@ -283,11 +283,11 @@ static esp_err_t audio_player_write_pcm(void *audio_buffer, size_t len, size_t *
         }
 
         size_t chunk_output_len = chunk_frames;
-        if((chunk_output_len & 0x03U) != 0U) {
-            chunk_output_len += (4U - (chunk_output_len & 0x03U));
+        if(chunk_output_len & 1U) {
+            chunk_output_len += 1U; /**< pad to even so inbuf_len is 4-byte aligned (2 bytes/sample × even count) */
         }
 
-        uint8_t converted[AUDIO_PLAYER_CHUNK_FRAMES];
+        int16_t converted[AUDIO_PLAYER_CHUNK_FRAMES + 1]; /**< +1 for possible alignment pad sample */
 
         uint32_t level_sum = 0;
         for(size_t i = 0; i < chunk_frames; i++) {
@@ -329,7 +329,7 @@ static esp_err_t audio_player_write_pcm(void *audio_buffer, size_t len, size_t *
                 level_sum += (uint32_t)abs_mono;
             }
 
-            converted[i] = (uint8_t)(((mono + 32768) >> 8) & 0xFF);
+            converted[i] = (int16_t)mono; /**< pass 16-bit PCM directly; driver case 16 handles signed→duty shift */
         }
 
         if(g_player.crazy_enabled && chunk_frames > 0) {
@@ -362,17 +362,17 @@ static esp_err_t audio_player_write_pcm(void *audio_buffer, size_t len, size_t *
         }
 
         if(chunk_output_len > chunk_frames) {
-            memset(converted + chunk_frames, converted[chunk_frames - 1], chunk_output_len - chunk_frames);
+            converted[chunk_frames] = converted[chunk_frames - 1]; /**< repeat last sample for alignment pad */
         }
 
         size_t native_written = 0;
-        esp_err_t err = pwm_audio_write(converted, chunk_output_len, &native_written, pdMS_TO_TICKS(timeout_ms));
+        esp_err_t err = pwm_audio_write((uint8_t *)converted, chunk_output_len * sizeof(int16_t), &native_written, pdMS_TO_TICKS(timeout_ms));
 
         if(err != ESP_OK) {
             return err;
         }
 
-        size_t frames_written = native_written;
+        size_t frames_written = native_written / sizeof(int16_t); /**< driver reports bytes; convert back to frames */
         if(frames_written > chunk_frames) {
             frames_written = chunk_frames;
         }
@@ -397,7 +397,7 @@ static esp_err_t audio_player_backend_init(void) {
     pwm_audio_get_status(&st);
 
     if(st == PWM_AUDIO_STATUS_IDLE) {
-        esp_err_t err = pwm_audio_set_param(48000, LEDC_TIMER_8_BIT, 1);
+        esp_err_t err = pwm_audio_set_param(48000, 16, 1);
         if(err != ESP_OK) {
             ESP_LOGW(TAG, "pwm_audio_set_param failed: %s", esp_err_to_name(err));
         }

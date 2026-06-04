@@ -31,17 +31,27 @@ static const char *TAG = "Tetris";
 
 /* Bottom HUD strip: drawn inside its own border, separate from board.
  * HUD_OY = 103, height 25 (uvy 103..127). Inner region uvy 104..126, uvx 1..57.
+ *
+ * Layout inside HUD (left to right):
+ *   HOLD box (3px cells, 14x14 incl border) | NEXT box (3x14x14) | text column
  */
 #define HUD_OY     103
 #define HUD_H      25
 
-/* NEXT preview: 4x4 cells at smaller block size, on left of bottom strip */
-#define BS_NEXT    4
-#define NEXT_OX    2
-#define NEXT_OY    (HUD_OY + 3)            /* 106 */
+#define BS_PV      3                       /* preview block size */
+#define PV_BOX_W   (4 * BS_PV + 2)         /* 14 */
+#define PV_BOX_H   (4 * BS_PV + 2)         /* 14 */
 
-/* Score text: right of NEXT box */
-#define TXT_OX     22
+/* HOLD box */
+#define HOLD_OX    2
+#define HOLD_OY    (HUD_OY + 6)            /* 109; label sits above at y=104 */
+
+/* NEXT box */
+#define NEXT_OX    18
+#define NEXT_OY    (HUD_OY + 6)            /* 109 */
+
+/* Score text column */
+#define TXT_OX     34
 
 /* Pixel buffer covers the whole 128x64 image */
 static uint8_t pxbuf[128 * 64];
@@ -151,6 +161,8 @@ static inline bool piece_cell(int kind, int rot, int dx, int dy) {
 static int8_t   board[BOARD_H][BOARD_W];
 static int      cur_kind, cur_rot, cur_x, cur_y;
 static int      next_kind;
+static int      hold_kind;     /* -1 = empty */
+static bool     hold_used;     /* true once you've held this piece */
 static uint32_t score;
 static uint16_t lines_total;
 static uint8_t  level;
@@ -185,26 +197,34 @@ static void draw_hud_border(void) {
     for (int i = 0; i < h; i++) { px_uv(x0, y0 + i, true); px_uv(x0 + w - 1, y0 + i, true); }
 }
 
-static void draw_next_box(void) {
-    int x0 = NEXT_OX, y0 = NEXT_OY;
-    int w  = 4 * BS_NEXT + 2, h = 4 * BS_NEXT + 2;
+static void draw_preview_box(int x0, int y0, int piece_kind) {
+    int w = PV_BOX_W, h = PV_BOX_H;
     /* clear */
     fill_uv_rect(x0, y0, w, h, false);
     /* border */
     for (int i = 0; i < w; i++) { px_uv(x0 + i, y0, true); px_uv(x0 + i, y0 + h - 1, true); }
     for (int i = 0; i < h; i++) { px_uv(x0, y0 + i, true); px_uv(x0 + w - 1, y0 + i, true); }
-    /* piece */
+    /* piece (skip if -1 for empty hold) */
+    if (piece_kind < 0) return;
     for (int dy = 0; dy < 4; dy++)
         for (int dx = 0; dx < 4; dx++)
-            if (piece_cell(next_kind, 0, dx, dy)) {
-                int uvx = x0 + 1 + dx * BS_NEXT;
-                int uvy = y0 + 1 + dy * BS_NEXT;
-                fill_uv_rect(uvx, uvy, BS_NEXT, BS_NEXT, true);
+            if (piece_cell(piece_kind, 0, dx, dy)) {
+                int uvx = x0 + 1 + dx * BS_PV;
+                int uvy = y0 + 1 + dy * BS_PV;
+                fill_uv_rect(uvx, uvy, BS_PV, BS_PV, true);
             }
 }
 
+static void draw_next_box(void) {
+    draw_preview_box(NEXT_OX, NEXT_OY, next_kind);
+}
+
+static void draw_hold_box(void) {
+    draw_preview_box(HOLD_OX, HOLD_OY, hold_kind);
+}
+
 static void draw_hud(void) {
-    /* Clear HUD text region (right of NEXT box, inside HUD border) */
+    /* Clear text region (right of NEXT box, inside HUD border). */
     fill_uv_rect(TXT_OX, HUD_OY + 1, UV_W - TXT_OX - 1, HUD_H - 2, false);
 
     char buf[16];
@@ -212,22 +232,25 @@ static void draw_hud(void) {
     /* Row 1: SCORE */
     draw_text(TXT_OX, HUD_OY + 3,  "SCR");
     snprintf(buf, sizeof(buf), "%lu", (unsigned long)score);
-    draw_text(TXT_OX + 14, HUD_OY + 3, buf);
+    draw_text(TXT_OX, HUD_OY + 10, buf);
 
     /* Row 2: LINES */
-    draw_text(TXT_OX, HUD_OY + 11, "LN");
+    draw_text(TXT_OX + 13, HUD_OY + 3, "LN");
     snprintf(buf, sizeof(buf), "%u", (unsigned)lines_total);
-    draw_text(TXT_OX + 10, HUD_OY + 11, buf);
+    draw_text(TXT_OX + 13, HUD_OY + 10, buf);
 
-    /* Row 3: LEVEL */
-    draw_text(TXT_OX, HUD_OY + 19, "LV");
+    /* Row 3: LEVEL (full width below) */
+    draw_text(TXT_OX, HUD_OY + 18, "LV");
     snprintf(buf, sizeof(buf), "%u", (unsigned)level);
-    draw_text(TXT_OX + 10, HUD_OY + 19, buf);
+    draw_text(TXT_OX + 10, HUD_OY + 18, buf);
 }
 
 static void draw_static_labels(void) {
-    /* HUD frame is permanent */
+    /* HUD frame */
     draw_hud_border();
+    /* Captions above the two preview boxes */
+    draw_text(HOLD_OX + 1, HUD_OY + 1, "HLD");
+    draw_text(NEXT_OX + 1, HUD_OY + 1, "NXT");
 }
 
 static void draw_board_and_piece(void) {
@@ -250,6 +273,7 @@ static void draw_board_and_piece(void) {
 static void redraw_all(void) {
     NuttyDisplay_lockLVGL();
     draw_board_and_piece();
+    draw_hold_box();
     draw_next_box();
     draw_hud();
     if (img_obj) lv_obj_invalidate(img_obj);
@@ -304,9 +328,36 @@ static void spawn_piece(void) {
     cur_rot = 0;
     cur_x = (BOARD_W - 4) / 2;
     cur_y = -1;
+    hold_used = false;
     if (collides(cur_kind, cur_rot, cur_x, cur_y)) {
         game_over = true;
     }
+}
+
+/* Spawn a specific piece (used after swapping out of hold). Sets game_over on collision. */
+static void spawn_specific(int kind) {
+    cur_kind = kind;
+    cur_rot = 0;
+    cur_x = (BOARD_W - 4) / 2;
+    cur_y = -1;
+    if (collides(cur_kind, cur_rot, cur_x, cur_y)) {
+        game_over = true;
+    }
+}
+
+static bool do_hold(void) {
+    if (hold_used) return false;       /* one swap per piece */
+    int incoming = hold_kind;
+    hold_kind = cur_kind;
+    if (incoming < 0) {
+        /* Hold was empty: stash current, draw from NEXT */
+        spawn_piece();
+    } else {
+        /* Swap with previously held piece */
+        spawn_specific(incoming);
+    }
+    hold_used = true;                  /* re-set false on next natural spawn */
+    return true;
 }
 
 static void try_move(int dx, int dy) {
@@ -333,6 +384,23 @@ static void hard_drop(void) {
     }
 }
 
+/* Score thresholds for each level. level_for_score() returns the highest
+ * index i such that score >= LEVEL_SCORE_THRESHOLDS[i].
+ * Indices align with drop_interval_ms() table below. */
+static const uint32_t LEVEL_SCORE_THRESHOLDS[16] = {
+    0, 200, 500, 1000, 1800, 3000, 4500, 6500,
+    9000, 12000, 16000, 21000, 27000, 34000, 42000, 50000
+};
+
+static uint8_t level_for_score(uint32_t s) {
+    uint8_t lv = 0;
+    for (uint8_t i = 0; i < 16; i++) {
+        if (s >= LEVEL_SCORE_THRESHOLDS[i]) lv = i;
+        else break;
+    }
+    return lv;
+}
+
 static uint32_t drop_interval_ms(void) {
     int lv = level;
     if (lv > 15) lv = 15;
@@ -352,28 +420,32 @@ static void draw_centered_message(const char *line1, const char *line2) {
     if (line2) draw_text(x2, y + 7, line2);
 }
 
-static void show_splash(void) {
+/* Splash result */
+typedef enum { SPLASH_START, SPLASH_EXIT } splash_result_t;
+
+static splash_result_t show_splash(void) {
     memset(pxbuf, 1, sizeof(pxbuf));
 
     /* All text strictly inside the board border (uvy 1..100, uvx 4..53). */
     /* Title */
-    draw_text(BOARD_OX + 13,  3, "TETRIS");
+    draw_text(BOARD_OX + 13,  2, "TETRIS");
 
     /* "TILT BADGE RIGHT" centered */
-    draw_text(BOARD_OX + 13, 14, "TILT");
-    draw_text(BOARD_OX + 9,  22, "BADGE");
-    draw_text(BOARD_OX + 9,  30, "RIGHT");
+    draw_text(BOARD_OX + 13, 11, "TILT");
+    draw_text(BOARD_OX + 9,  19, "BADGE");
+    draw_text(BOARD_OX + 9,  27, "RIGHT");
 
     /* Key map */
-    draw_text(BOARD_OX + 1,  44, "U:LEFT");
-    draw_text(BOARD_OX + 1,  52, "D:RGHT");
-    draw_text(BOARD_OX + 1,  60, "L:DROP");
-    draw_text(BOARD_OX + 1,  68, "R:ROT");
-    draw_text(BOARD_OX + 1,  76, "B:HARD");
+    draw_text(BOARD_OX + 1,  39, "U:LEFT");
+    draw_text(BOARD_OX + 1,  47, "D:RGHT");
+    draw_text(BOARD_OX + 1,  55, "L:DROP");
+    draw_text(BOARD_OX + 1,  63, "R:ROT");
+    draw_text(BOARD_OX + 1,  71, "B:HARD");
+    draw_text(BOARD_OX + 1,  79, "X:HOLD");
 
     /* Prompt */
     draw_text(BOARD_OX + 9,  88, "PRESS");
-    draw_text(BOARD_OX + 5,  96, "ANY KEY");
+    draw_text(BOARD_OX + 5,  95, "ANY KEY");
 
     draw_border();
 
@@ -381,25 +453,42 @@ static void show_splash(void) {
     if (img_obj) lv_obj_invalidate(img_obj);
     NuttyDisplay_unlockLVGL();
 
+    /* Drain stale button events: wait until every button is released, then clear. */
+    int64_t drain_deadline = esp_timer_get_time() + 400000LL; /* up to 400ms */
+    while (esp_timer_get_time() < drain_deadline) {
+        if (!NuttyInput_isOneOfTheButtonsCurrentlyPressed(NUTTYINPUT_BTN_ALL)) break;
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
     NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
+
     while (1) {
-        if (NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_ALL)) break;
+        /* Long-hold SELECT exits to main launcher. */
         if (NuttyInput_waitSingleButtonHoldLongNonBlock(NUTTYINPUT_BTN_SELECT)) {
-            game_over = true;
-            return;
+            return SPLASH_EXIT;
+        }
+        /* Any other tap-and-release starts the game. We exclude SELECT here so a
+         * tap of SELECT doesn't start the game (it should only long-hold to exit). */
+        if (NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(
+                NUTTYINPUT_BTN_ALL & ~NUTTYINPUT_BTN_SELECT)) {
+            return SPLASH_START;
         }
         vTaskDelay(pdMS_TO_TICKS(20));
     }
 }
 
+/* run_game return values */
+typedef enum { GAME_END_OVER, GAME_END_USER_QUIT } game_end_t;
+
 /* ---------- main game loop ---------- */
-static void run_game(void) {
+static game_end_t run_game(void) {
     memset(board, 0, sizeof(board));
     score = 0;
     lines_total = 0;
     level = 0;
     game_over = false;
     paused = false;
+    hold_kind = -1;
+    hold_used = false;
 
     srand((unsigned)esp_timer_get_time());
     next_kind = rand() % 7;
@@ -413,12 +502,23 @@ static void run_game(void) {
 
     int64_t last_drop = esp_timer_get_time();
 
+    /* Drain any held buttons from the splash before starting input loop. */
+    int64_t drain_deadline = esp_timer_get_time() + 400000LL;
+    while (esp_timer_get_time() < drain_deadline) {
+        if (!NuttyInput_isOneOfTheButtonsCurrentlyPressed(NUTTYINPUT_BTN_ALL)) break;
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
     NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
+
+    bool user_quit = false;
 
     while (!game_over) {
         bool dirty = false;
 
-        if (NuttyInput_waitSingleButtonHoldLongNonBlock(NUTTYINPUT_BTN_SELECT)) break;
+        if (NuttyInput_waitSingleButtonHoldLongNonBlock(NUTTYINPUT_BTN_SELECT)) {
+            user_quit = true;
+            break;
+        }
 
         if (NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_START)) {
             paused = !paused;
@@ -458,6 +558,9 @@ static void run_game(void) {
         }
         if (NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_A)) {
             try_rotate(); dirty = true;
+        }
+        if (NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_USRDEF)) {
+            if (do_hold()) { dirty = true; last_drop = esp_timer_get_time(); }
         }
         if (NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_B)) {
             hard_drop();
@@ -506,13 +609,21 @@ static void run_game(void) {
         char msg[40];
         snprintf(msg, sizeof(msg), "Game Over! Score:%lu", (unsigned long)score);
         NuttySystemMonitor_setSystemTrayTempText(msg, 40);
+        /* Drain held buttons so the next input is a real new press. */
+        int64_t d = esp_timer_get_time() + 400000LL;
+        while (esp_timer_get_time() < d) {
+            if (!NuttyInput_isOneOfTheButtonsCurrentlyPressed(NUTTYINPUT_BTN_ALL)) break;
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
         NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
         int64_t t0 = esp_timer_get_time();
         while ((esp_timer_get_time() - t0) < 4000000LL) {
             if (NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_ALL)) break;
             vTaskDelay(pdMS_TO_TICKS(20));
         }
+        return GAME_END_OVER;
     }
+    return user_quit ? GAME_END_USER_QUIT : GAME_END_OVER;
 }
 
 /* ---------- app entry ---------- */
@@ -535,8 +646,19 @@ static void nutty_main(void) {
     lv_obj_align(img_obj, LV_ALIGN_TOP_LEFT, 0, 0);
     NuttyDisplay_unlockLVGL();
 
-    show_splash();
-    if (!game_over) run_game();
+    /* Loop:
+     *   splash --(any key)--> game --(game-over)--> splash
+     *                              \--(long-hold SELECT)--> exit
+     *   splash --(long-hold SELECT)--> exit
+     */
+    while (1) {
+        splash_result_t s = show_splash();
+        if (s == SPLASH_EXIT) break;
+
+        game_end_t g = run_game();
+        if (g == GAME_END_USER_QUIT) break;
+        /* GAME_END_OVER: fall through and re-show splash */
+    }
 
     NuttyDisplay_lockLVGL();
     if (img_obj) { lv_obj_del(img_obj); img_obj = NULL; }

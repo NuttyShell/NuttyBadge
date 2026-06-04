@@ -1,5 +1,6 @@
 #include "NutNutRevolution.h"
 #include "songs/butterfly_nnr.h"
+#include "songs/night_of_fire_nnr.h"
 #include "services/NuttyStorage/NuttyStorage.h"
 #include "audio_player.h"
 #include "drivers/pwm_audio.h"
@@ -48,6 +49,7 @@ static const char *TAG = "NutNutRevolution";
      /sdcard/NutNutRevolution/songs/<name>/<NAME>.mp3   */
 #define NNR_SONGS_BASE  SDCARD_MOUNT_POINT "/NutNutRevolution/songs"
 #define NNR_MAX_SONGS   16
+#define NNR_MENU_MAX    (NNR_MAX_SONGS + 2)
 
 /* PWM ring buffer is 4096 bytes; at 48 kHz 8-bit that is 85 ms of audio.
    game_start_us is shifted forward by this amount so that chart time 0
@@ -80,8 +82,8 @@ typedef struct {
 typedef struct {
     char  title[33];
     char  artist[33];
-    char  chart_path[128]; /* SD card .nnr; ignored when flash_data set */
-    char  audio_path[128]; /* SD card .mp3; empty = silent              */
+    char  chart_path[256]; /* SD card .nnr; ignored when flash_data set */
+    char  audio_path[256]; /* SD card .mp3; empty = silent              */
     const uint8_t *flash_data;
     size_t         flash_size;
 } NNRSong;
@@ -283,14 +285,14 @@ static void scan_sd_songs(void)
         if (entry->d_name[0] == '.') continue;
 
         /* Check the entry is a directory */
-        char folder[160];
-        snprintf(folder, sizeof(folder), "%s/%s", NNR_SONGS_BASE, entry->d_name);
+        char folder[256];
+        snprintf(folder, sizeof(folder), "%s/%.64s", NNR_SONGS_BASE, entry->d_name);
         struct stat st;
         if (stat(folder, &st) != 0 || !S_ISDIR(st.st_mode)) continue;
 
         /* Scan sub-folder for .nnr and .mp3 */
-        char nnr_path[160] = {0};
-        char mp3_path[160] = {0};
+        char nnr_path[256] = {0};
+        char mp3_path[256] = {0};
         DIR *sdir = opendir(folder);
         if (!sdir) continue;
         struct dirent *se;
@@ -298,9 +300,9 @@ static void scan_sd_songs(void)
             size_t nl = strlen(se->d_name);
             if (nl > 4) {
                 if (strcasecmp(se->d_name + nl - 4, ".nnr") == 0)
-                    snprintf(nnr_path, sizeof(nnr_path), "%s/%s", folder, se->d_name);
+                    snprintf(nnr_path, sizeof(nnr_path), "%.190s/%.64s", folder, se->d_name);
                 else if (strcasecmp(se->d_name + nl - 4, ".mp3") == 0)
-                    snprintf(mp3_path, sizeof(mp3_path), "%s/%s", folder, se->d_name);
+                    snprintf(mp3_path, sizeof(mp3_path), "%.190s/%.64s", folder, se->d_name);
             }
         }
         closedir(sdir);
@@ -335,8 +337,10 @@ static void populate_songs(void)
 {
     g_song_count = 0;
 
-    /* ── Built-in: BUTTERFLY chart from flash, audio from SD ── */
-    NNRSong *b = &g_songs[g_song_count++];
+    /* ── Built-in songs (chart from flash, audio from SD) ── */
+    NNRSong *b;
+
+    b = &g_songs[g_song_count++];
     memset(b, 0, sizeof(*b));
     strncpy(b->title,  "BUTTERFLY", 32);
     strncpy(b->artist, "SMILE.dk",  32);
@@ -344,6 +348,15 @@ static void populate_songs(void)
              "%s/butterfly/BUTTERFLY.mp3", NNR_SONGS_BASE);
     b->flash_data = butterfly_nnr_data;
     b->flash_size = BUTTERFLY_NNR_SIZE;
+
+    b = &g_songs[g_song_count++];
+    memset(b, 0, sizeof(*b));
+    strncpy(b->title,  "NIGHT OF FIRE", 32);
+    strncpy(b->artist, "MIKO",         32);
+    snprintf(b->audio_path, sizeof(b->audio_path),
+             "%s/night of fire/Night Of Fire.mp3", NNR_SONGS_BASE);
+    b->flash_data = night_of_fire_nnr_data;
+    b->flash_size = NIGHT_OF_FIRE_NNR_SIZE;
 
     /* ── SD card songs ── */
     scan_sd_songs();
@@ -394,31 +407,33 @@ static void draw_arrow(int ax, int ay, int col)
         fb_px(ax+5, ay+11);
         break;
     case 1: /* ⇩ */
-        fb_hline(ax+3, ay+0, 6);                       /* shaft top  */
-        fb_px(ax+3,ay+1);  fb_px(ax+8, ay+1);
-        fb_px(ax+3,ay+2);  fb_px(ax+8, ay+2);
-        fb_px(ax+3,ay+3);  fb_px(ax+8, ay+3);
-        fb_px(ax+3,ay+4);  fb_px(ax+8, ay+4);
-        fb_px(ax+3,ay+5);  fb_px(ax+8, ay+5);
-        fb_hline(ax,   ay+6, 4); fb_hline(ax+8, ay+6, 4); /* wing caps */
+        fb_hline(ax+4, ay+0, 4);                           /* shaft top  */
+        fb_px(ax+4,ay+1);  fb_px(ax+7, ay+1);
+        fb_px(ax+4,ay+2);  fb_px(ax+7, ay+2);
+        fb_px(ax+4,ay+3);  fb_px(ax+7, ay+3);
+        fb_px(ax+4,ay+4);  fb_px(ax+7, ay+4);
+        fb_px(ax+4,ay+5);  fb_px(ax+7, ay+5);
+        fb_hline(ax,   ay+6, 5); fb_hline(ax+7, ay+6, 5); /* wing caps  */
         fb_px(ax+1,ay+7);  fb_px(ax+10,ay+7);
         fb_px(ax+2,ay+8);  fb_px(ax+9, ay+8);
-        fb_px(ax+4,ay+9);  fb_px(ax+7, ay+9);
-        fb_px(ax+5,ay+10); fb_px(ax+6, ay+10);        /* 2px tip    */
-        break;                                         /* row 11 empty */
+        fb_px(ax+3,ay+9);  fb_px(ax+8, ay+9);
+        fb_px(ax+4,ay+10); fb_px(ax+7, ay+10);
+        fb_px(ax+5,ay+11); fb_px(ax+6, ay+11);            /* 2px tip    */
+        break;
     case 2: /* ⇧  vertical mirror of ⇩ */
-        fb_px(ax+5,ay+1);  fb_px(ax+6, ay+1);         /* 2px tip    */
-        fb_px(ax+4,ay+2);  fb_px(ax+7, ay+2);
+        fb_px(ax+5,ay+0);  fb_px(ax+6, ay+0);             /* 2px tip    */
+        fb_px(ax+4,ay+1);  fb_px(ax+7, ay+1);
+        fb_px(ax+3,ay+2);  fb_px(ax+8, ay+2);
         fb_px(ax+2,ay+3);  fb_px(ax+9, ay+3);
         fb_px(ax+1,ay+4);  fb_px(ax+10,ay+4);
-        fb_hline(ax,   ay+5, 4); fb_hline(ax+8, ay+5, 4); /* wing caps */
-        fb_px(ax+3,ay+6);  fb_px(ax+8, ay+6);
-        fb_px(ax+3,ay+7);  fb_px(ax+8, ay+7);
-        fb_px(ax+3,ay+8);  fb_px(ax+8, ay+8);
-        fb_px(ax+3,ay+9);  fb_px(ax+8, ay+9);
-        fb_px(ax+3,ay+10); fb_px(ax+8, ay+10);
-        fb_hline(ax+3, ay+11, 6);                      /* shaft bottom*/
-        break;                                         /* row 0 empty */
+        fb_hline(ax,   ay+5, 5); fb_hline(ax+7, ay+5, 5); /* wing caps  */
+        fb_px(ax+4,ay+6);  fb_px(ax+7, ay+6);
+        fb_px(ax+4,ay+7);  fb_px(ax+7, ay+7);
+        fb_px(ax+4,ay+8);  fb_px(ax+7, ay+8);
+        fb_px(ax+4,ay+9);  fb_px(ax+7, ay+9);
+        fb_px(ax+4,ay+10); fb_px(ax+7, ay+10);
+        fb_hline(ax+4, ay+11, 4);                          /* shaft bottom*/
+        break;
     case 3: /* ⇨  horizontal mirror of ⇦ */
         fb_px(ax+6, ay+0);
         fb_px(ax+6,ay+1);  fb_px(ax+7, ay+1);
@@ -455,26 +470,28 @@ static void draw_arrow_flash(int ax, int ay, int col)
         fb_px        (ax+5,            ay+11);
         break;
     case 1: /* ⇩ filled */
-        fb_hline(ax+3, ay+0,  6);
-        fb_hline(ax+3, ay+1,  6); fb_hline(ax+3, ay+2, 6);
-        fb_hline(ax+3, ay+3,  6); fb_hline(ax+3, ay+4, 6);
-        fb_hline(ax+3, ay+5,  6);
+        fb_hline(ax+4, ay+0,  4);
+        fb_hline(ax+4, ay+1,  4); fb_hline(ax+4, ay+2,  4);
+        fb_hline(ax+4, ay+3,  4); fb_hline(ax+4, ay+4,  4);
+        fb_hline(ax+4, ay+5,  4);
         fb_hline(ax,   ay+6, 12);
         fb_hline(ax+1, ay+7, 10);
         fb_hline(ax+2, ay+8,  8);
-        fb_hline(ax+4, ay+9,  4);
-        fb_hline(ax+5, ay+10, 2);
+        fb_hline(ax+3, ay+9,  6);
+        fb_hline(ax+4, ay+10, 4);
+        fb_hline(ax+5, ay+11, 2);
         break;
     case 2: /* ⇧ filled */
-        fb_hline(ax+5, ay+1,  2);
-        fb_hline(ax+4, ay+2,  4);
+        fb_hline(ax+5, ay+0,  2);
+        fb_hline(ax+4, ay+1,  4);
+        fb_hline(ax+3, ay+2,  6);
         fb_hline(ax+2, ay+3,  8);
         fb_hline(ax+1, ay+4, 10);
         fb_hline(ax,   ay+5, 12);
-        fb_hline(ax+3, ay+6,  6); fb_hline(ax+3, ay+7, 6);
-        fb_hline(ax+3, ay+8,  6); fb_hline(ax+3, ay+9, 6);
-        fb_hline(ax+3, ay+10, 6);
-        fb_hline(ax+3, ay+11, 6);
+        fb_hline(ax+4, ay+6,  4); fb_hline(ax+4, ay+7,  4);
+        fb_hline(ax+4, ay+8,  4); fb_hline(ax+4, ay+9,  4);
+        fb_hline(ax+4, ay+10, 4);
+        fb_hline(ax+4, ay+11, 4);
         break;
     case 3: /* ⇨ filled */
         fb_px        (ax+6,            ay+0);
@@ -497,13 +514,6 @@ static void draw_arrow_flash(int ax, int ay, int col)
 static void render_frame(int total, int32_t cur_ms, const uint8_t *flash)
 {
     memset(game_fb, 1, sizeof(game_fb));
-
-    /* Lane separators */
-    for (int x = 32; x <= 96; x += 32)
-        fb_vline(x, NNR_PLAYFIELD_TOP, 59 - NNR_PLAYFIELD_TOP);
-
-    /* Hit line */
-    fb_hline(0, NNR_HITZONE_Y, FB_W);
 
     /* Receptors — ⇦⇩⇧⇨ outline; briefly filled solid on hit */
     for (int lane = 0; lane < 4; lane++) {
@@ -535,17 +545,26 @@ static void render_frame(int total, int32_t cur_ms, const uint8_t *flash)
     NuttyDisplay_unlockLVGL();
 }
 
-/* ── shared LVGL click callback ─────────────────────────────────────*/
+/* ── shared LVGL click callback ─────────────────────────────────────
+   LV_LABEL_LONG_SCROLL_CIRCULAR causes lv_label_get_text() to return a
+   modified (duplicated) internal string, so text comparison is unreliable.
+   Use an index stored per-item instead.                               */
+typedef struct { volatile int *out; int idx; } NNRItemCtx;
+
 static void nnr_click_cb(lv_event_t *e)
 {
-    *((const char **)e->user_data) =
-        lv_label_get_text(lv_obj_get_child(e->target, 0));
+    NNRItemCtx *ctx = (NNRItemCtx *)e->user_data;
+    *ctx->out = ctx->idx;
 }
 
-/* ── helper: build + run a LVGL menu, returns selected items[] ptr ──*/
-static const char *nnr_menu(lv_obj_t *da, const char **items, uint8_t count)
+/* ── helper: build + run a LVGL menu, returns selected index (0-based)
+   Returns -1 on error.                                                */
+static int nnr_menu(lv_obj_t *da, const char **items, uint8_t count)
 {
-    const char *sel = NULL;
+    if (count == 0 || count > NNR_MENU_MAX) return -1;
+    volatile int result = -2;          /* -2 = nothing clicked yet */
+    NNRItemCtx ctxs[NNR_MENU_MAX];
+
     NuttyInputLVGLInputMapping map = {
         .UP=LV_KEY_PREV, .DOWN=LV_KEY_NEXT, .A=LV_KEY_ENTER
     };
@@ -564,6 +583,8 @@ static const char *nnr_menu(lv_obj_t *da, const char **items, uint8_t count)
     lv_obj_center(menu);
     lv_obj_t *page = lv_menu_page_create(menu, NULL);
     for (uint8_t i = 0; i < count; i++) {
+        ctxs[i].out = &result;
+        ctxs[i].idx = (int)i;
         lv_obj_t *cont = lv_menu_cont_create(page);
         lv_obj_t *lbl  = lv_label_create(cont);
         lv_label_set_text(lbl, items[i]);
@@ -571,28 +592,21 @@ static const char *nnr_menu(lv_obj_t *da, const char **items, uint8_t count)
         lv_obj_set_width(lbl, lv_pct(100));
         lv_obj_add_style(lbl, &ts, LV_PART_MAIN);
         lv_menu_set_load_page_event(menu, cont, NULL);
-        lv_obj_add_event_cb(cont, nnr_click_cb, LV_EVENT_CLICKED, (void*)&sel);
+        lv_obj_add_event_cb(cont, nnr_click_cb, LV_EVENT_CLICKED, (void*)&ctxs[i]);
         lv_obj_set_style_outline_width(cont, 1, LV_STATE_FOCUS_KEY);
         lv_group_add_obj(g, cont);
     }
     lv_menu_set_page(menu, page);
     NuttyDisplay_unlockLVGL();
 
-    while (!sel) vTaskDelay(pdMS_TO_TICKS(50));
-
-    /* Resolve to original items[] pointer BEFORE LVGL cleanup.
-       sel points into LVGL's string buffer which is freed by clearUserAppArea. */
-    const char *result = NULL;
-    for (uint8_t i = 0; i < count; i++) {
-        if (strcmp(sel, items[i]) == 0) { result = items[i]; break; }
-    }
+    while (result == -2) vTaskDelay(pdMS_TO_TICKS(50));
 
     NuttyDisplay_lockLVGL();
     lv_group_remove_all_objs(g); lv_group_del(g);
     lv_style_reset(&ts);
     NuttyDisplay_unlockLVGL();
     NuttyDisplay_clearUserAppArea();
-    return result;
+    return (int)result;
 }
 
 /* ── results screen ──────────────────────────────────────────────────*/
@@ -899,10 +913,25 @@ static int show_diff_select(const NNRSong *song)
 {
     const uint8_t *cd; size_t csz; uint8_t *heap = NULL;
     if (song->flash_data) { cd = song->flash_data; csz = song->flash_size; }
-    else { heap = nnr_load_file(song->chart_path, &csz); if (!heap) return -1; cd = heap; }
+    else {
+        ESP_LOGI(TAG, "show_diff_select: loading '%s'", song->chart_path);
+        heap = nnr_load_file(song->chart_path, &csz);
+        if (!heap) {
+            ESP_LOGE(TAG, "show_diff_select: file load failed");
+            NuttySystemMonitor_setSystemTrayTempText("NNR: file not found", 30);
+            return -1;
+        }
+        cd = heap;
+    }
 
     NNRSongInfo si; NNRDiffInfo di[NNR_MAX_DIFFS];
-    if (!nnr_parse_header(cd, csz, &si, di, NNR_MAX_DIFFS)) { free(heap); return -1; }
+    if (!nnr_parse_header(cd, csz, &si, di, NNR_MAX_DIFFS)) {
+        ESP_LOGE(TAG, "show_diff_select: bad header (sz=%u magic=%02x%02x%02x%02x)",
+                 (unsigned)csz, cd[0], cd[1], cd[2], cd[3]);
+        NuttySystemMonitor_setSystemTrayTempText("NNR: bad format", 30);
+        free(heap);
+        return -1;
+    }
 
     static char dlabels[NNR_MAX_DIFFS+1][24];
     const char *ptrs[NNR_MAX_DIFFS+1];
@@ -914,12 +943,10 @@ static int show_diff_select(const NNRSong *song)
     snprintf(dlabels[nd], 24, "< Back");
     ptrs[nd] = dlabels[nd];
 
-    const char *sel = nnr_menu(NuttyDisplay_getUserAppArea(), ptrs, nd+1);
+    int idx = nnr_menu(NuttyDisplay_getUserAppArea(), ptrs, nd+1);
     free(heap);
-    if (!sel || strcmp(sel, "< Back") == 0) return -1;
-    for (uint8_t i = 0; i < nd; i++)
-        if (strcmp(sel, dlabels[i]) == 0) return (int)i;
-    return -1;
+    if (idx < 0 || idx == (int)nd) return -1;  /* error or Back */
+    return idx;
 }
 
 /* ── song select ─────────────────────────────────────────────────────*/
@@ -928,25 +955,23 @@ static int show_song_select(void)
     /* Refresh list each time to pick up newly inserted SD cards */
     populate_songs();
 
-    static char slabels[NNR_MAX_SONGS + 1][40];
+    static char slabels[NNR_MAX_SONGS + 1][72];
     const char *ptrs  [NNR_MAX_SONGS + 1];
 
     for (int i = 0; i < g_song_count; i++) {
         if (g_songs[i].artist[0])
-            snprintf(slabels[i], 40, "%s - %s", g_songs[i].title, g_songs[i].artist);
+            snprintf(slabels[i], 72, "%.32s - %.32s", g_songs[i].title, g_songs[i].artist);
         else
-            snprintf(slabels[i], 40, "%s", g_songs[i].title);
+            snprintf(slabels[i], 72, "%.32s", g_songs[i].title);
         ptrs[i] = slabels[i];
     }
-    snprintf(slabels[g_song_count], 40, "< Back");
+    snprintf(slabels[g_song_count], 72, "< Back");
     ptrs[g_song_count] = slabels[g_song_count];
 
-    const char *sel = nnr_menu(NuttyDisplay_getUserAppArea(), ptrs,
-                               (uint8_t)(g_song_count + 1));
-    if (!sel || strcmp(sel, "< Back") == 0) return -1;
-    for (int i = 0; i < g_song_count; i++)
-        if (strcmp(sel, slabels[i]) == 0) return i;
-    return -1;
+    int idx = nnr_menu(NuttyDisplay_getUserAppArea(), ptrs,
+                       (uint8_t)(g_song_count + 1));
+    if (idx < 0 || idx == g_song_count) return -1;  /* error or Back */
+    return idx;
 }
 
 /* ── app entry ───────────────────────────────────────────────────────*/
@@ -958,15 +983,16 @@ static void nutty_main(void)
     bool exit_app = false;
 
     while (!exit_app) {
-        const char *sel = nnr_menu(NuttyDisplay_getUserAppArea(), main_items, 3);
-        if (!sel) continue;
+        int sel = nnr_menu(NuttyDisplay_getUserAppArea(), main_items, 3);
+        if (sel < 0) continue;
 
-        if (strcmp(sel, "Exit") == 0) {
+        if (sel == 2) {         /* Exit */
             exit_app = true;
-        } else if (strcmp(sel, "Key Mapping") == 0) {
+        } else if (sel == 1) {  /* Key Mapping */
             show_key_mapping();
-        } else if (strcmp(sel, "Play") == 0) {
+        } else if (sel == 0) {  /* Play */
             int si = show_song_select();
+            ESP_LOGI(TAG, "song select returned %d (count=%d)", si, g_song_count);
             if (si >= 0 && si < g_song_count) {
                 int di = show_diff_select(&g_songs[si]);
                 if (di >= 0) game_play(&g_songs[si], di);

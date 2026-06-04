@@ -686,6 +686,39 @@ static void show_key_mapping(void)
     NuttyDisplay_clearUserAppArea();
 }
 
+/* ── help screen ─────────────────────────────────────────────────────*/
+static void show_help(void)
+{
+    lv_style_t s; lv_style_init(&s);
+    lv_style_set_text_font(&s, &cg_pixel_4x5_mono);
+    lv_obj_t *da = NuttyDisplay_getUserAppArea();
+    static const char *lines[] = {
+        "      HELP",
+        "2 charts built-in.",
+        "No music by default.",
+        "Add songs to SD card:",
+        " songs/<name>/*.nnr",
+        " songs/<name>/*.mp3",
+        "More info in README:",
+        " NutNutRevolution/README",
+    };
+    NuttyDisplay_lockLVGL();
+    for (uint8_t i = 0; i < 8; i++) {
+        lv_obj_t *l = lv_label_create(da);
+        lv_label_set_text(l, lines[i]);
+        lv_obj_add_style(l, &s, LV_PART_MAIN);
+        lv_obj_set_pos(l, 0, (int16_t)(i*7+1));
+    }
+    NuttyDisplay_unlockLVGL();
+    NuttyInput_clearButtonHoldState(NUTTYINPUT_BTN_ALL);
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(20));
+        if (NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_ALL)) break;
+    }
+    lv_style_reset(&s);
+    NuttyDisplay_clearUserAppArea();
+}
+
 /* ── game loop ───────────────────────────────────────────────────────*/
 static void game_play(const NNRSong *song, int diff_idx)
 {
@@ -975,7 +1008,7 @@ static int show_song_select(void)
 }
 
 /* ── app entry ───────────────────────────────────────────────────────*/
-static const char *main_items[] = { "Play", "Key Mapping", "Exit" };
+static const char *main_items[] = { "Play", "Key Mapping", "Help", "Exit" };
 
 static void nutty_main(void)
 {
@@ -983,11 +1016,13 @@ static void nutty_main(void)
     bool exit_app = false;
 
     while (!exit_app) {
-        int sel = nnr_menu(NuttyDisplay_getUserAppArea(), main_items, 3);
+        int sel = nnr_menu(NuttyDisplay_getUserAppArea(), main_items, 4);
         if (sel < 0) continue;
 
-        if (sel == 2) {         /* Exit */
+        if (sel == 3) {         /* Exit */
             exit_app = true;
+        } else if (sel == 2) {  /* Help */
+            show_help();
         } else if (sel == 1) {  /* Key Mapping */
             show_key_mapping();
         } else if (sel == 0) {  /* Play */

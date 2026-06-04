@@ -19,6 +19,7 @@ typedef esp_err_t (*NuttyDriverSDCardSizeMBFunc)(uint64_t *size_mb);
 typedef esp_err_t (*NuttyDriverSDCardTypeFunc)(char **type);
 typedef bool (*NuttyDriverSDCardIsSDCardMountedFunc)(void);
 typedef bool (*NuttyDriverSDCardIsSDCardPersistFunc)(void);
+typedef sdmmc_card_t *(*NuttyDriverSDCardGetCardObjectFunc)(void);
 typedef bool (*NuttyDriverSDCardGetSDInsertedFunc)(void);
 typedef esp_err_t (*NuttyDriverSDCardLSDirFunc)(const char *);
 typedef struct _NuttyDriverSDCard {
@@ -30,6 +31,7 @@ typedef struct _NuttyDriverSDCard {
     NuttyDriverSDCardTypeFunc getSDCardType;
     NuttyDriverSDCardIsSDCardMountedFunc isSDCardMounted;
     NuttyDriverSDCardIsSDCardPersistFunc isSDCardPersist;
+    NuttyDriverSDCardGetCardObjectFunc getCardObject;
     NuttyDriverSDCardGetSDInsertedFunc getCardInserted;
     NuttyDriverSDCardLSDirFunc lsDir;
     

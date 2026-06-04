@@ -301,6 +301,13 @@ static esp_err_t ls_dir(const char *absPath) {
     return ESP_OK;
 }
 
+sdmmc_card_t *get_card_object(void) {
+    if(is_sd_card_persist() && is_sd_card_mounted()) {
+        return card;
+    }
+    return NULL;
+}
+
 NuttyDriverSDCard nuttyDriverSDCard = {
     .initSDCard = init_sd_card,
     .printSDCardInfo = print_sd_card_info,
@@ -308,6 +315,7 @@ NuttyDriverSDCard nuttyDriverSDCard = {
     .unmountSDCard = unmount_sd_card,
     .isSDCardMounted = is_sd_card_mounted,
     .isSDCardPersist = is_sd_card_persist,
+    .getCardObject = get_card_object,
     .getCardInserted = get_card_detect_inserted,
     .getSDCardSizeMB = get_sd_size_mb,
     .getSDCardType = get_sd_type,

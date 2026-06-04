@@ -67,36 +67,30 @@ static void addKeyToQueue(int pressed, unsigned char doomKey)
     s_KeyQueueWriteIndex %= KEYQUEUE_SIZE;
 }
 
-// Poll the IO expander directly and push button events into the key queue.
-// Also detect START+SELECT held together as a force-quit signal.
+// Poll the NuttyInput service and push button events into the key queue.
+// Uses the debounced button state from NuttyInput (which handles the
+// matrix-scanned IO expander internally) instead of reading the IOE
+// directly. Also detect START+SELECT held together as a force-quit signal.
 static void pollNuttyInput(void)
 {
     static uint16_t prev_buttons = 0;
     uint16_t current_buttons = 0;
 
-    // Read raw IO expander state (active-low)
-    uint8_t ioeVal = 0;
-    nuttyDriverIOE.lockIOE();
-    nuttyDriverIOE.readIOE(&ioeVal);
-    nuttyDriverIOE.releaseIOE();
-
-    // Map active-low bits to NuttyInput button constants
-    if (!(ioeVal & 0x01)) current_buttons |= NUTTYINPUT_BTN_UP;
-    if (!(ioeVal & 0x02)) current_buttons |= NUTTYINPUT_BTN_DOWN;
-    if (!(ioeVal & 0x04)) current_buttons |= NUTTYINPUT_BTN_LEFT;
-    if (!(ioeVal & 0x08)) current_buttons |= NUTTYINPUT_BTN_RIGHT;
-    if (!(ioeVal & 0x10)) current_buttons |= NUTTYINPUT_BTN_A;
-    if (!(ioeVal & 0x20)) current_buttons |= NUTTYINPUT_BTN_B;
-    if (!(ioeVal & 0x40)) current_buttons |= NUTTYINPUT_BTN_SELECT;
-    if (!(ioeVal & 0x80)) current_buttons |= NUTTYINPUT_BTN_START;
+    // Read current debounced state from the NuttyInput service.
+    // This is the correct way to read buttons — the IO expander is
+    // matrix-scanned and a single raw readIOE() returns garbage.
+    for (uint16_t mask = 1; mask <= NUTTYINPUT_BTN_USRDEF; mask <<= 1)
+    {
+        if (NuttyInput_isOneOfTheButtonsCurrentlyPressed(mask))
+            current_buttons |= mask;
+    }
 
     // Edge detection
     uint16_t pressed  = current_buttons & ~prev_buttons;
     uint16_t released = prev_buttons & ~current_buttons;
 
     // Push pressed events
-    uint16_t mask;
-    for (mask = 1; mask <= NUTTYINPUT_BTN_USRDEF; mask <<= 1)
+    for (uint16_t mask = 1; mask <= NUTTYINPUT_BTN_USRDEF; mask <<= 1)
     {
         if (pressed & mask)
         {
@@ -106,7 +100,7 @@ static void pollNuttyInput(void)
     }
 
     // Push released events
-    for (mask = 1; mask <= NUTTYINPUT_BTN_USRDEF; mask <<= 1)
+    for (uint16_t mask = 1; mask <= NUTTYINPUT_BTN_USRDEF; mask <<= 1)
     {
         if (released & mask)
         {

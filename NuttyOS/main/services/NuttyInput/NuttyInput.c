@@ -302,6 +302,15 @@ static void NuttyInput_UART(void *arg) {
                 btnPressedDebounced &= ~(1 << 8); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                 vTaskDelay(pdMS_TO_TICKS(10));
                 btnHeldDebounced &= ~(1 << 8); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+            }else if(i==0 && ch == 'e') {
+                btnPressedEvent |= (1 << 6); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                btnPressedDebounced |= (1 << 6); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                btnHeldDebounced |= (1 << 6); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                vTaskDelay(pdMS_TO_TICKS(10));
+                btnHoldReleasedEvent |= (1 << 6); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                btnPressedDebounced &= ~(1 << 6); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
+                vTaskDelay(pdMS_TO_TICKS(10));
+                btnHeldDebounced &= ~(1 << 6); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
             }else if(i==0 && ch == 's') {
                 btnPressedEvent |= (1 << 7); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}
                 btnPressedDebounced |= (1 << 7); // {0000000 USRDEF START SELECT B A RIGHT LEFT DOWN UP}

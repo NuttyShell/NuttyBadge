@@ -170,7 +170,8 @@ static void nutty_main(void) {
         NuttyDisplay_unlockLVGL();
         while(!NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_A)) vTaskDelay(pdMS_TO_TICKS(10));
 
-        // Test LCD Backlight
+        // Test LCD Backlight (For non-OLED Rev. A, B Boards only) (For Rev. C, OLED screen is used and there is no backlight)
+        #if NUTTYBADGE_REVC_OLED != 1
         NuttyDisplay_lockLVGL();
         lv_label_set_text(lblTestCategory, "Testing: LCD Backlight");
         lv_label_set_text(lblTestResult, "Result: TESTING...");
@@ -189,6 +190,7 @@ static void nutty_main(void) {
         lv_label_set_text(lblTestResult, "Result: User Observe?\nPress [A] for next item.");
         NuttyDisplay_unlockLVGL();
         while(!NuttyInput_waitSingleButtonHoldAndReleasedNonBlock(NUTTYINPUT_BTN_A)) vTaskDelay(pdMS_TO_TICKS(10));
+        #endif
 
         // Test SD Card
         NuttyDisplay_lockLVGL();

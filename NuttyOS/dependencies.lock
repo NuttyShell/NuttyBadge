@@ -72,9 +72,6 @@ dependencies:
     version: 8.4.0
 direct_dependencies:
 - chmorgan/esp-audio-player
-- idf
-- lvgl/lvgl
-manifest_hash: ef15fb27fe09991374295ab0b0b29f347248f602992220456951a480d642d8c6
 - espressif/esp_tinyusb
 - idf
 - lvgl/lvgl

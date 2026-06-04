@@ -150,6 +150,7 @@ void app_main(void) {
     NuttyApps_registerApp(NuttySnake);
     NuttyApps_registerApp(NuttyBird);
     NuttyApps_registerApp(NutNutRevolution);
+    NuttyApps_registerApp(NuttyTetris);
     NuttyApps_registerApp(NuttyAudioPlayer);
     NuttyApps_registerApp(NuttyRemote);
     NuttyApps_registerApp(NuttyRF);
@@ -163,7 +164,6 @@ void app_main(void) {
     NuttyApps_registerApp(NuttySettings);
     NuttyApps_registerApp(NuttyShowImage);
     NuttyApps_registerApp(NuttyAbout);
-    NuttyApps_registerApp(NuttyTetris);
     NuttyApps_printApps();
     NuttyApps_launchAppByIndex(0);
 

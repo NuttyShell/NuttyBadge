@@ -223,26 +223,49 @@ static void draw_hold_box(void) {
     draw_preview_box(HOLD_OX, HOLD_OY, hold_kind);
 }
 
+/* Forward decl: defined alongside drop_interval_ms() further down. */
+static uint32_t score_speed_tier(uint32_t s);
+
 static void draw_hud(void) {
     /* Clear text region (right of NEXT box, inside HUD border). */
     fill_uv_rect(TXT_OX, HUD_OY + 1, UV_W - TXT_OX - 1, HUD_H - 2, false);
 
     char buf[16];
 
-    /* Row 1: SCORE */
-    draw_text(TXT_OX, HUD_OY + 3,  "SCR");
-    snprintf(buf, sizeof(buf), "%lu", (unsigned long)score);
-    draw_text(TXT_OX, HUD_OY + 10, buf);
+    /* Stat column (TXT_OX..UV_W-2 = ~24 px wide).
+     * 5-px-tall glyphs; we stack four rows on 6-px pitch:
+     *   y=HUD_OY+1  : "SCR" caption
+     *   y=HUD_OY+7  : score value (full width, up to 6 digits)
+     *   y=HUD_OY+13 : "LN" + lines_total (label and number on same row)
+     *   y=HUD_OY+19 : "LV" + speed tier (label and number on same row)
+     *
+     * The displayed LV reflects the score-based speed tier (0..6) from the
+     * 30%-faster-per-500-points table, NOT the legacy line-based level
+     * (which is still tracked internally for the line-clear scoring bonus).
+     */
+    int y_scr_lbl  = HUD_OY + 1;
+    int y_scr_val  = HUD_OY + 7;
+    int y_lines    = HUD_OY + 13;
+    int y_level    = HUD_OY + 19;
 
-    /* Row 2: LINES */
-    draw_text(TXT_OX + 13, HUD_OY + 3, "LN");
-    snprintf(buf, sizeof(buf), "%u", (unsigned)lines_total);
-    draw_text(TXT_OX + 13, HUD_OY + 10, buf);
+    /* Score: clamp display to 6 digits (max 999999) so the value never
+     * overruns the HUD column. The score variable itself keeps counting. */
+    draw_text(TXT_OX, y_scr_lbl, "SCR");
+    uint32_t shown_score = score > 999999u ? 999999u : score;
+    snprintf(buf, sizeof(buf), "%lu", (unsigned long)shown_score);
+    draw_text(TXT_OX, y_scr_val, buf);
 
-    /* Row 3: LEVEL (full width below) */
-    draw_text(TXT_OX, HUD_OY + 18, "LV");
-    snprintf(buf, sizeof(buf), "%u", (unsigned)level);
-    draw_text(TXT_OX + 10, HUD_OY + 18, buf);
+    /* Lines: "LN" + number on the same row. Up to 4 digits fit (LN9999). */
+    draw_text(TXT_OX, y_lines, "LN");
+    unsigned shown_lines = lines_total > 9999u ? 9999u : lines_total;
+    snprintf(buf, sizeof(buf), "%u", shown_lines);
+    draw_text(TXT_OX + 9, y_lines, buf);
+
+    /* Level: speed tier from the score-based table, capped at the table max. */
+    draw_text(TXT_OX, y_level, "LV");
+    unsigned shown_level = (unsigned)score_speed_tier(score);
+    snprintf(buf, sizeof(buf), "%u", shown_level);
+    draw_text(TXT_OX + 9, y_level, buf);
 }
 
 static void draw_static_labels(void) {
@@ -384,28 +407,46 @@ static void hard_drop(void) {
     }
 }
 
-/* Score thresholds for each level. level_for_score() returns the highest
- * index i such that score >= LEVEL_SCORE_THRESHOLDS[i].
- * Indices align with drop_interval_ms() table below. */
-static const uint32_t LEVEL_SCORE_THRESHOLDS[16] = {
-    0, 200, 500, 1000, 1800, 3000, 4500, 6500,
-    9000, 12000, 16000, 21000, 27000, 34000, 42000, 50000
-};
+/* Score-based speed-up tiers.
+ * Every 500 points the gravity interval is multiplied by 0.7 (i.e. the block
+ * falls 30% faster). Tiers saturate after score >= 3000 (6 steps), keeping
+ * the game playable rather than turning into a slideshow at extreme scores.
+ *
+ *   score     tier   speed factor (relative to base drop interval at this level)
+ *   <500       0     1.000
+ *   500..999   1     0.700
+ *   1000..1499 2     0.490
+ *   1500..1999 3     0.343
+ *   2000..2499 4     0.240
+ *   2500..2999 5     0.168
+ *   >=3000     6     0.118  (capped)
+ */
+#define TETRIS_SCORE_SPEED_STEP        500u
+#define TETRIS_SCORE_SPEED_MAX_TIER    6u
+#define TETRIS_DROP_INTERVAL_FLOOR_MS  20u
 
-static uint8_t level_for_score(uint32_t s) {
-    uint8_t lv = 0;
-    for (uint8_t i = 0; i < 16; i++) {
-        if (s >= LEVEL_SCORE_THRESHOLDS[i]) lv = i;
-        else break;
-    }
-    return lv;
+static uint32_t score_speed_tier(uint32_t s) {
+    uint32_t tier = s / TETRIS_SCORE_SPEED_STEP;
+    if (tier > TETRIS_SCORE_SPEED_MAX_TIER) tier = TETRIS_SCORE_SPEED_MAX_TIER;
+    return tier;
 }
 
 static uint32_t drop_interval_ms(void) {
     int lv = level;
     if (lv > 15) lv = 15;
     static const uint16_t tbl[] = { 700, 620, 540, 470, 400, 340, 280, 230, 180, 140, 110, 90, 75, 65, 55, 45 };
-    return tbl[lv];
+    uint32_t interval = tbl[lv];
+
+    /* Apply score-based 30%-faster-per-500-points multiplier (integer-only:
+     * each tier multiplies by 7/10). */
+    uint32_t tier = score_speed_tier(score);
+    for (uint32_t i = 0; i < tier; i++) {
+        interval = (interval * 7u) / 10u;
+    }
+    if (interval < TETRIS_DROP_INTERVAL_FLOOR_MS) {
+        interval = TETRIS_DROP_INTERVAL_FLOOR_MS;
+    }
+    return interval;
 }
 
 /* ---------- screens ---------- */

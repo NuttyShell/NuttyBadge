@@ -35,6 +35,9 @@
 
 #include "doomstat.h"
 
+// ESP-IDF PSRAM BSS attribute — moves large arrays to external RAM
+#include "esp_attr.h"
+
 
 
 #define MINZ				(FRACUNIT*4)
@@ -72,8 +75,8 @@ lighttable_t**	spritelights;
 
 // constant arrays
 //  used for psprite clipping and initializing clipping
-short		negonearray[SCREENWIDTH];
-short		screenheightarray[SCREENWIDTH];
+EXT_RAM_BSS_ATTR short	negonearray[SCREENWIDTH];
+EXT_RAM_BSS_ATTR short	screenheightarray[SCREENWIDTH];
 
 
 //
@@ -85,7 +88,7 @@ short		screenheightarray[SCREENWIDTH];
 spritedef_t*	sprites;
 int		numsprites;
 
-spriteframe_t	sprtemp[29];
+EXT_RAM_BSS_ATTR spriteframe_t	sprtemp[29];
 int		maxframe;
 char*		spritename;
 
@@ -278,7 +281,7 @@ void R_InitSpriteDefs (char** namelist)
 //
 // GAME FUNCTIONS
 //
-vissprite_t	vissprites[MAXVISSPRITES];
+EXT_RAM_BSS_ATTR vissprite_t	vissprites[MAXVISSPRITES];
 vissprite_t*	vissprite_p;
 int		newvissprite;
 
@@ -834,8 +837,8 @@ _Pragma("GCC diagnostic pop")
 //
 // R_DrawSprite
 //
-static short		clipbot[SCREENWIDTH];
-static short		cliptop[SCREENWIDTH];
+static EXT_RAM_BSS_ATTR short	clipbot[SCREENWIDTH];
+static EXT_RAM_BSS_ATTR short	cliptop[SCREENWIDTH];
 void R_DrawSprite (vissprite_t* spr)
 {
     drawseg_t*		ds;

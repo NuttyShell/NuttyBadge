@@ -26,6 +26,9 @@
 #include "p_local.h"
 #include "sounds.h"
 
+// ESP-IDF PSRAM BSS attribute — moves large arrays to external RAM
+#include "esp_attr.h"
+
 #include "st_stuff.h"
 #include "hu_stuff.h"
 
@@ -563,8 +566,8 @@ P_SpawnMobj
 //
 // P_RemoveMobj
 //
-mapthing_t	itemrespawnque[ITEMQUESIZE];
-int		itemrespawntime[ITEMQUESIZE];
+EXT_RAM_BSS_ATTR mapthing_t	itemrespawnque[ITEMQUESIZE];
+EXT_RAM_BSS_ATTR int		itemrespawntime[ITEMQUESIZE];
 int		iquehead;
 int		iquetail;
 

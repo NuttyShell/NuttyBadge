@@ -29,6 +29,9 @@
 
 #include "statdump.h"
 
+// ESP-IDF PSRAM BSS attribute — moves large arrays to external RAM
+#include "esp_attr.h"
+
 /* Par times for E1M1-E1M9. */
 static const int doom1_par_times[] __attribute__((unused)) =
 {
@@ -54,7 +57,7 @@ static const char *player_colors[] =
 // Array of end-of-level statistics that have been captured.
 
 #define MAX_CAPTURES 32
-static wbstartstruct_t captured_stats[MAX_CAPTURES];
+static EXT_RAM_BSS_ATTR wbstartstruct_t captured_stats[MAX_CAPTURES];
 static int num_captured_stats = 0;
 
 #if ORIGCODE

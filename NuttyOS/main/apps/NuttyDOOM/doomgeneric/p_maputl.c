@@ -31,6 +31,9 @@
 #include "doomstat.h"
 #include "p_local.h"
 
+// ESP-IDF PSRAM BSS attribute — moves large arrays to external RAM
+#include "esp_attr.h"
+
 
 // State.
 #include "r_state.h"

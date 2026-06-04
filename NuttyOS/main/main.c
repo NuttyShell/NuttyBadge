@@ -45,6 +45,7 @@
 #include "apps/NuttySettings/NuttySettings.h"
 #include "apps/NuttyShowImage/NuttyShowImage.h"
 #include "apps/NuttyAbout/NuttyAbout.h"
+#include "apps/NuttyTetris/NuttyTetris.h"
 
 static const char* TAG = "NuttyOS";
 
@@ -149,6 +150,7 @@ void app_main(void) {
     NuttyApps_registerApp(NuttySnake);
     NuttyApps_registerApp(NuttyBird);
     NuttyApps_registerApp(NutNutRevolution);
+    NuttyApps_registerApp(NuttyTetris);
     NuttyApps_registerApp(NuttyAudioPlayer);
     NuttyApps_registerApp(NuttyRemote);
     NuttyApps_registerApp(NuttyRF);

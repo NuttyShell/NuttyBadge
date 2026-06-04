@@ -41,6 +41,7 @@ idf_component_register(
                     SRCS "apps/NuttySettings/NuttySettings.c"
                     SRCS "apps/NuttyShowImage/NuttyShowImage.c"
                     SRCS "apps/NuttyAbout/NuttyAbout.c"
+                    SRCS "apps/NuttyTetris/NuttyTetris.c"
                     SRCS ""
                     SRCS ""
                     SRCS ""

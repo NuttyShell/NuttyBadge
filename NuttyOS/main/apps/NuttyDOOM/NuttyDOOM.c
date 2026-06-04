@@ -1,4 +1,5 @@
 #include "NuttyDOOM.h"
+#include "esp_heap_caps.h"
 
 // The quit flag exposed by the doomgeneric nuttybadge platform layer
 extern volatile bool nuttydoom_quit_requested;
@@ -120,30 +121,55 @@ static void nutty_main(void)
             // User selected a file – launch DOOM in a dedicated task
             nuttydoom_quit_requested = false;
 
-            BaseType_t ret = xTaskCreatePinnedToCore(
-                nutty_doom_task,
-                "doom",
-                32768,          // stack size – DOOM needs significant heap
-                (void *)wadFilePath,
-                5,              // priority
-                NULL,
-                1               // run on core 1 (APP CPU)
-            );
+            // Allocate task stack from PSRAM (FreeRTOS dynamic task creation
+            // uses internal DRAM for the stack, which is exhausted).
+            // Note: the TCB (StaticTask_t) must remain in internal DRAM.
+            StackType_t *doom_stack = heap_caps_malloc(
+                32768 * sizeof(StackType_t), MALLOC_CAP_SPIRAM);
+            StaticTask_t *doom_task_buf = heap_caps_malloc(
+                sizeof(StaticTask_t), MALLOC_CAP_INTERNAL);
 
-            if (ret != pdPASS)
+            if (doom_stack == NULL || doom_task_buf == NULL)
             {
-                ESP_LOGE(TAG, "Failed to create DOOM task");
+                ESP_LOGE(TAG, "Failed to allocate PSRAM stack for DOOM task");
+                free(doom_stack);
+                free(doom_task_buf);
                 free(wadFilePath);
             }
             else
             {
-                // Wait for the DOOM task to finish (it will delete itself)
-                while (!nuttydoom_quit_requested)
+                TaskHandle_t doom_handle = xTaskCreateStaticPinnedToCore(
+                    nutty_doom_task,
+                    "doom",
+                    32768 / sizeof(StackType_t),   // stack depth in words
+                    (void *)wadFilePath,
+                    5,                              // priority
+                    doom_stack,
+                    doom_task_buf,
+                    1                               // run on core 1 (APP CPU)
+                );
+
+                if (doom_handle == NULL)
                 {
-                    vTaskDelay(pdMS_TO_TICKS(100));
+                    ESP_LOGE(TAG, "Failed to create DOOM task");
+                    free(doom_stack);
+                    free(doom_task_buf);
+                    free(wadFilePath);
                 }
-                // Small delay to let DOOM task clean up
-                vTaskDelay(pdMS_TO_TICKS(50));
+                else
+                {
+                    // Wait for the DOOM task to finish (it will delete itself)
+                    while (!nuttydoom_quit_requested)
+                    {
+                        vTaskDelay(pdMS_TO_TICKS(100));
+                    }
+                    // Small delay to let DOOM task clean up
+                    vTaskDelay(pdMS_TO_TICKS(50));
+
+                    // Free the PSRAM stack buffers now that the task is dead
+                    free(doom_stack);
+                    free(doom_task_buf);
+                }
             }
         }
         else

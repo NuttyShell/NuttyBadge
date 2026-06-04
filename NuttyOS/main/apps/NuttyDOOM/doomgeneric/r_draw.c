@@ -30,6 +30,9 @@
 
 #include "r_local.h"
 
+// ESP-IDF PSRAM BSS attribute — moves large arrays to external RAM
+#include "esp_attr.h"
+
 // Needs access to LFB (guess what).
 #include "v_video.h"
 
@@ -61,14 +64,14 @@ int		scaledviewwidth;
 int		viewheight;
 int		viewwindowx;
 int		viewwindowy; 
-byte*		ylookup[MAXHEIGHT]; 
-int		columnofs[MAXWIDTH]; 
+EXT_RAM_BSS_ATTR byte*	ylookup[MAXHEIGHT]; 
+EXT_RAM_BSS_ATTR int	columnofs[MAXWIDTH]; 
 
 // Color tables for different players,
 //  translate a limited part to another
 //  (color ramps used for  suit colors).
 //
-byte		translations[3][256];	
+EXT_RAM_BSS_ATTR byte	translations[3][256];	
  
 // Backing buffer containing the bezel drawn around the screen and 
 // surrounding background.

@@ -36,6 +36,9 @@
 #include "r_sky.h"
 #include "st_stuff.h"
 
+// ESP-IDF PSRAM BSS attribute — moves large arrays to external RAM
+#include "esp_attr.h"
+
 
 
 
@@ -91,16 +94,16 @@ angle_t			clipangle;
 // maps the visible view angles to screen X coordinates,
 // flattening the arc to a flat projection plane.
 // There will be many angles mapped to the same X. 
-int			viewangletox[FINEANGLES/2];
+EXT_RAM_BSS_ATTR int	viewangletox[FINEANGLES/2];
 
 // The xtoviewangleangle[] table maps a screen pixel
 // to the lowest viewangle that maps back to x ranges
 // from clipangle to -clipangle.
 angle_t			xtoviewangle[SCREENWIDTH+1];
 
-lighttable_t*		scalelight[LIGHTLEVELS][MAXLIGHTSCALE];
-lighttable_t*		scalelightfixed[MAXLIGHTSCALE];
-lighttable_t*		zlight[LIGHTLEVELS][MAXLIGHTZ];
+EXT_RAM_BSS_ATTR lighttable_t*	scalelight[LIGHTLEVELS][MAXLIGHTSCALE];
+EXT_RAM_BSS_ATTR lighttable_t*	scalelightfixed[MAXLIGHTSCALE];
+EXT_RAM_BSS_ATTR lighttable_t*	zlight[LIGHTLEVELS][MAXLIGHTZ];
 
 // bumped light from gun blasts
 int			extralight;			

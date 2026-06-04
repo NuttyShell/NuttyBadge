@@ -26,6 +26,8 @@ idf_component_register(
                     SRCS "apps/NuttyShooter/NuttyShooter.c"
                     SRCS "apps/NuttyTest/NuttyTest.c"
                     SRCS "apps/NuttySnake/NuttySnake.c"
+                    SRCS "apps/NuttyBird/NuttyBird.c"
+                    SRCS "apps/NutNutRevolution/NutNutRevolution.c"
                     SRCS "apps/NuttyAudioPlayer/NuttyAudioPlayer.c"
                     SRCS "apps/NuttyRemote/NuttyRemote.c"
                     SRCS "apps/NuttyRF/NuttyRF.c"

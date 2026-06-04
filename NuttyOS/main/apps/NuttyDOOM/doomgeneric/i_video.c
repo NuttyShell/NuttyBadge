@@ -23,7 +23,7 @@
 //-----------------------------------------------------------------------------
 
 static const char
-rcsid[] = "$Id: i_x.c,v 1.6 1997/02/03 22:45:10 b1 Exp $";
+rcsid[] __attribute__((unused)) = "$Id: i_x.c,v 1.6 1997/02/03 22:45:10 b1 Exp $";
 
 #include "config.h"
 #include "v_video.h"
@@ -271,11 +271,11 @@ void I_InitGraphics (void)
 
 #endif  // CMAP256
 
-    printf("I_InitGraphics: framebuffer: x_res: %d, y_res: %d, x_virtual: %d, y_virtual: %d, bpp: %d\n",
-            s_Fb.xres, s_Fb.yres, s_Fb.xres_virtual, s_Fb.yres_virtual, s_Fb.bits_per_pixel);
+    printf("I_InitGraphics: framebuffer: x_res: %lu, y_res: %lu, x_virtual: %lu, y_virtual: %lu, bpp: %lu\n",
+            (unsigned long)s_Fb.xres, (unsigned long)s_Fb.yres, (unsigned long)s_Fb.xres_virtual, (unsigned long)s_Fb.yres_virtual, (unsigned long)s_Fb.bits_per_pixel);
 
-    printf("I_InitGraphics: framebuffer: RGBA: %d%d%d%d, red_off: %d, green_off: %d, blue_off: %d, transp_off: %d\n",
-            s_Fb.red.length, s_Fb.green.length, s_Fb.blue.length, s_Fb.transp.length, s_Fb.red.offset, s_Fb.green.offset, s_Fb.blue.offset, s_Fb.transp.offset);
+    printf("I_InitGraphics: framebuffer: RGBA: %lu%lu%lu%lu, red_off: %lu, green_off: %lu, blue_off: %lu, transp_off: %lu\n",
+            (unsigned long)s_Fb.red.length, (unsigned long)s_Fb.green.length, (unsigned long)s_Fb.blue.length, (unsigned long)s_Fb.transp.length, (unsigned long)s_Fb.red.offset, (unsigned long)s_Fb.green.offset, (unsigned long)s_Fb.blue.offset, (unsigned long)s_Fb.transp.offset);
 
     printf("I_InitGraphics: DOOM screen size: w x h: %d x %d\n", SCREENWIDTH, SCREENHEIGHT);
 

@@ -1554,14 +1554,14 @@ typedef void (*load_callback_t)(char *lumpname, patch_t **variable);
 static void WI_loadUnloadData(load_callback_t callback)
 {
     int i, j;
-    char name[9];
+    char name[32];
     anim_t *a;
 
     if (gamemode == commercial)
     {
 	for (i=0 ; i<NUMCMAPS ; i++)
 	{
-	    DEH_snprintf(name, 9, "CWILV%2.2d", i);
+	    DEH_snprintf(name, sizeof(name), "CWILV%2.2d", i);
             callback(name, &lnames[i]);
 	}
     }
@@ -1569,7 +1569,7 @@ static void WI_loadUnloadData(load_callback_t callback)
     {
 	for (i=0 ; i<NUMMAPS ; i++)
 	{
-	    DEH_snprintf(name, 9, "WILV%d%d", wbs->epsd, i);
+	    DEH_snprintf(name, sizeof(name), "WILV%d%d", wbs->epsd, i);
             callback(name, &lnames[i]);
 	}
 
@@ -1593,7 +1593,7 @@ static void WI_loadUnloadData(load_callback_t callback)
 		    if (wbs->epsd != 1 || j != 8)
 		    {
 			// animations
-			DEH_snprintf(name, 9, "WIA%d%.2d%.2d", wbs->epsd, j, i);
+			DEH_snprintf(name, sizeof(name), "WIA%d%.2d%.2d", wbs->epsd, j, i);
                         callback(name, &a->p[i]);
 		    }
 		    else
@@ -1612,7 +1612,7 @@ static void WI_loadUnloadData(load_callback_t callback)
     for (i=0;i<10;i++)
     {
 	 // numbers 0-9
-	DEH_snprintf(name, 9, "WINUM%d", i);
+	DEH_snprintf(name, sizeof(name), "WINUM%d", i);
         callback(name, &num[i]);
     }
 
@@ -1673,11 +1673,11 @@ static void WI_loadUnloadData(load_callback_t callback)
     for (i=0 ; i<MAXPLAYERS ; i++)
     {
 	// "1,2,3,4"
-	DEH_snprintf(name, 9, "STPB%d", i);
+	DEH_snprintf(name, sizeof(name), "STPB%d", i);
         callback(name, &p[i]);
 
 	// "1,2,3,4"
-	DEH_snprintf(name, 9, "WIBP%d", i+1);
+	DEH_snprintf(name, sizeof(name), "WIBP%d", i+1);
         callback(name, &bp[i]);
     }
 

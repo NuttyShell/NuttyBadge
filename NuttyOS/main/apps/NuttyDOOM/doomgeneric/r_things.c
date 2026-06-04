@@ -776,6 +776,8 @@ void R_DrawPlayerSprites (void)
 vissprite_t	vsprsortedhead;
 
 
+_Pragma("GCC diagnostic push")
+_Pragma("GCC diagnostic ignored \"-Wdangling-pointer\"")
 void R_SortVisSprites (void)
 {
     int			i;
@@ -826,7 +828,7 @@ void R_SortVisSprites (void)
 	vsprsortedhead.prev = best;
     }
 }
-
+_Pragma("GCC diagnostic pop")
 
 
 //

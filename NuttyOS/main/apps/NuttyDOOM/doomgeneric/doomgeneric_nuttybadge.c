@@ -1,213 +1,216 @@
-//doomgeneric for NuttyBadge
+// doomgeneric for NuttyBadge (ESP32-S3)
+// Uses NuttyInput, LCD driver (FSPI), and esp_timer instead of SDL
 
 #include "doomkeys.h"
 #include "m_argv.h"
 #include "doomgeneric.h"
+#include "net_client.h"
+
+// Stub definitions for networking symbols (not used in single-player mode)
+boolean drone = false;
+boolean net_client_connected = false;
 
 #include <stdio.h>
-#include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
 
-#include <stdbool.h>
-#include <SDL.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#include <esp_log.h>
+#include <esp_timer.h>
 
-SDL_Window* window = NULL;
-SDL_Renderer* renderer = NULL;
-SDL_Texture* texture;
+#include "NuttyPeripherals.h"
+#include "drivers/lcd.h"
+#include "services/NuttyInput/NuttyInput.h"
+#include "services/NuttySystemMonitor/NuttySystemMonitor.h"
+
+static const char *TAG = "NuttyDOOM";
 
 #define KEYQUEUE_SIZE 16
 
 static unsigned short s_KeyQueue[KEYQUEUE_SIZE];
-static unsigned int s_KeyQueueWriteIndex = 0;
-static unsigned int s_KeyQueueReadIndex = 0;
+static unsigned int   s_KeyQueueWriteIndex = 0;
+static unsigned int   s_KeyQueueReadIndex  = 0;
 
-static unsigned char convertToDoomKey(unsigned int key){
-  switch (key)
-    {
-    case SDLK_RETURN:
-      key = KEY_ENTER;
-      break;
-    case SDLK_ESCAPE:
-      key = KEY_ESCAPE;
-      break;
-    case SDLK_LEFT:
-      key = KEY_LEFTARROW;
-      break;
-    case SDLK_RIGHT:
-      key = KEY_RIGHTARROW;
-      break;
-    case SDLK_UP:
-      key = KEY_UPARROW;
-      break;
-    case SDLK_DOWN:
-      key = KEY_DOWNARROW;
-      break;
-    case SDLK_LCTRL:
-    case SDLK_RCTRL:
-      key = KEY_FIRE;
-      break;
-    case SDLK_SPACE:
-      key = KEY_USE;
-      break;
-    case SDLK_LSHIFT:
-    case SDLK_RSHIFT:
-      key = KEY_RSHIFT;
-      break;
-    case SDLK_LALT:
-    case SDLK_RALT:
-      key = KEY_LALT;
-      break;
-    case SDLK_F2:
-      key = KEY_F2;
-      break;
-    case SDLK_F3:
-      key = KEY_F3;
-      break;
-    case SDLK_F4:
-      key = KEY_F4;
-      break;
-    case SDLK_F5:
-      key = KEY_F5;
-      break;
-    case SDLK_F6:
-      key = KEY_F6;
-      break;
-    case SDLK_F7:
-      key = KEY_F7;
-      break;
-    case SDLK_F8:
-      key = KEY_F8;
-      break;
-    case SDLK_F9:
-      key = KEY_F9;
-      break;
-    case SDLK_F10:
-      key = KEY_F10;
-      break;
-    case SDLK_F11:
-      key = KEY_F11;
-      break;
-    case SDLK_EQUALS:
-    case SDLK_PLUS:
-      key = KEY_EQUALS;
-      break;
-    case SDLK_MINUS:
-      key = KEY_MINUS;
-      break;
-    default:
-      key = tolower(key);
-      break;
-    }
+// Flag set when DOOM should quit (via menu or force-quit combo)
+volatile bool nuttydoom_quit_requested = false;
 
-  return key;
-}
-
-static void addKeyToQueue(int pressed, unsigned int keyCode){
-  unsigned char key = convertToDoomKey(keyCode);
-
-  unsigned short keyData = (pressed << 8) | key;
-
-  s_KeyQueue[s_KeyQueueWriteIndex] = keyData;
-  s_KeyQueueWriteIndex++;
-  s_KeyQueueWriteIndex %= KEYQUEUE_SIZE;
-}
-static void handleKeyInput(){
-  SDL_Event e;
-  while (SDL_PollEvent(&e)){
-    if (e.type == SDL_QUIT){
-      puts("Quit requested");
-      atexit(SDL_Quit);
-      exit(1);
-    }
-    if (e.type == SDL_KEYDOWN) {
-      //KeySym sym = XKeycodeToKeysym(s_Display, e.xkey.keycode, 0);
-      //printf("KeyPress:%d sym:%d\n", e.xkey.keycode, sym);
-      addKeyToQueue(1, e.key.keysym.sym);
-    } else if (e.type == SDL_KEYUP) {
-      //KeySym sym = XKeycodeToKeysym(s_Display, e.xkey.keycode, 0);
-      //printf("KeyRelease:%d sym:%d\n", e.xkey.keycode, sym);
-      addKeyToQueue(0, e.key.keysym.sym);
-    }
-  }
-}
-
-
-void DG_Init(){
-  window = SDL_CreateWindow("DOOM",
-                            SDL_WINDOWPOS_UNDEFINED,
-                            SDL_WINDOWPOS_UNDEFINED,
-                            DOOMGENERIC_RESX * 4,
-                            DOOMGENERIC_RESY * 4,
-                            SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE
-                            );
-
-  // Setup renderer
-  renderer =  SDL_CreateRenderer( window, -1, SDL_RENDERER_ACCELERATED);
-  // Clear winow
-  SDL_RenderClear( renderer );
-  // Render the rect to the screen
-  SDL_RenderPresent(renderer);
-
-  texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB888, SDL_TEXTUREACCESS_TARGET, DOOMGENERIC_RESX, DOOMGENERIC_RESY);
-
-  SDL_RenderSetLogicalSize(renderer, DOOMGENERIC_RESX, DOOMGENERIC_RESY);
-}
-
-void DG_DrawFrame()
+// ---------------------------------------------------------------------------
+// Key mapping: NuttyBadge buttons -> DOOM keycodes
+// ---------------------------------------------------------------------------
+static unsigned char mapNuttyToDoomKey(uint16_t btn)
 {
-  SDL_UpdateTexture(texture, NULL, DG_ScreenBuffer, DOOMGENERIC_RESX*sizeof(uint32_t));
+    switch (btn)
+    {
+    case NUTTYINPUT_BTN_UP:     return KEY_UPARROW;
+    case NUTTYINPUT_BTN_DOWN:   return KEY_DOWNARROW;
+    case NUTTYINPUT_BTN_LEFT:   return KEY_LEFTARROW;
+    case NUTTYINPUT_BTN_RIGHT:  return KEY_RIGHTARROW;
+    case NUTTYINPUT_BTN_A:      return KEY_FIRE;       // shoot
+    case NUTTYINPUT_BTN_B:      return KEY_USE;         // open / use
+    case NUTTYINPUT_BTN_START:  return KEY_ENTER;       // menu select
+    case NUTTYINPUT_BTN_SELECT: return KEY_ESCAPE;      // back / menu
+    case NUTTYINPUT_BTN_USRDEF: return KEY_RSHIFT;      // run
+    default:                    return 0;
+    }
+}
 
-  SDL_RenderClear(renderer);
-  SDL_RenderCopy(renderer, texture, NULL, NULL);
-  SDL_RenderPresent(renderer);
+// ---------------------------------------------------------------------------
+// Key queue
+// ---------------------------------------------------------------------------
+static void addKeyToQueue(int pressed, unsigned char doomKey)
+{
+    unsigned short keyData = (pressed << 8) | doomKey;
+    s_KeyQueue[s_KeyQueueWriteIndex] = keyData;
+    s_KeyQueueWriteIndex++;
+    s_KeyQueueWriteIndex %= KEYQUEUE_SIZE;
+}
 
-  handleKeyInput();
+// Poll the IO expander directly and push button events into the key queue.
+// Also detect START+SELECT held together as a force-quit signal.
+static void pollNuttyInput(void)
+{
+    static uint16_t prev_buttons = 0;
+    uint16_t current_buttons = 0;
+
+    // Read raw IO expander state (active-low)
+    uint8_t ioeVal = 0;
+    nuttyDriverIOE.lockIOE();
+    nuttyDriverIOE.readIOE(&ioeVal);
+    nuttyDriverIOE.releaseIOE();
+
+    // Map active-low bits to NuttyInput button constants
+    if (!(ioeVal & 0x01)) current_buttons |= NUTTYINPUT_BTN_UP;
+    if (!(ioeVal & 0x02)) current_buttons |= NUTTYINPUT_BTN_DOWN;
+    if (!(ioeVal & 0x04)) current_buttons |= NUTTYINPUT_BTN_LEFT;
+    if (!(ioeVal & 0x08)) current_buttons |= NUTTYINPUT_BTN_RIGHT;
+    if (!(ioeVal & 0x10)) current_buttons |= NUTTYINPUT_BTN_A;
+    if (!(ioeVal & 0x20)) current_buttons |= NUTTYINPUT_BTN_B;
+    if (!(ioeVal & 0x40)) current_buttons |= NUTTYINPUT_BTN_SELECT;
+    if (!(ioeVal & 0x80)) current_buttons |= NUTTYINPUT_BTN_START;
+
+    // Edge detection
+    uint16_t pressed  = current_buttons & ~prev_buttons;
+    uint16_t released = prev_buttons & ~current_buttons;
+
+    // Push pressed events
+    uint16_t mask;
+    for (mask = 1; mask <= NUTTYINPUT_BTN_USRDEF; mask <<= 1)
+    {
+        if (pressed & mask)
+        {
+            unsigned char k = mapNuttyToDoomKey(mask);
+            if (k) addKeyToQueue(1, k);
+        }
+    }
+
+    // Push released events
+    for (mask = 1; mask <= NUTTYINPUT_BTN_USRDEF; mask <<= 1)
+    {
+        if (released & mask)
+        {
+            unsigned char k = mapNuttyToDoomKey(mask);
+            if (k) addKeyToQueue(0, k);
+        }
+    }
+
+    // Force-quit: START + SELECT held together
+    if ((current_buttons & (NUTTYINPUT_BTN_START | NUTTYINPUT_BTN_SELECT))
+         == (NUTTYINPUT_BTN_START | NUTTYINPUT_BTN_SELECT))
+    {
+        nuttydoom_quit_requested = true;
+    }
+
+    prev_buttons = current_buttons;
+}
+
+// ---------------------------------------------------------------------------
+// DG_* platform callbacks required by doomgeneric
+// ---------------------------------------------------------------------------
+
+void DG_Init(void)
+{
+    ESP_LOGI(TAG, "DG_Init: DOOM screen %dx%d", DOOMGENERIC_RESX, DOOMGENERIC_RESY);
+    NuttySystemMonitor_hideSystemTray();
+    NuttyDisplay_clearWholeScreen();
+}
+
+void DG_DrawFrame(void)
+{
+    // ---- 1. Convert DG_ScreenBuffer (32bpp) to LCD monochrome pages ----
+    // LCD: 128x64 = 8 pages x 128 bytes, each byte = 8 vertical pixels.
+    // DG_ScreenBuffer: 128x64 uint32_t (0x00FFFFFF = white, 0x00000000 = black).
+
+    static uint8_t lcd_fb[8][128];
+
+    memset(lcd_fb, 0, sizeof(lcd_fb));
+
+    pixel_t *src = DG_ScreenBuffer;
+
+    for (int y = 0; y < DOOMGENERIC_RESY; y++)
+    {
+        int page     = y >> 3;       // y / 8
+        int bit      = y & 7;        // y % 8
+        uint8_t mask = 1 << bit;     // bit 0 = top of page
+
+        for (int x = 0; x < DOOMGENERIC_RESX; x++)
+        {
+            pixel_t p = src[y * DOOMGENERIC_RESX + x];
+
+            // Extract RGBA8888 components
+            uint8_t r = (p >> 16) & 0xFF;
+            uint8_t g = (p >>  8) & 0xFF;
+            uint8_t b = (p >>  0) & 0xFF;
+
+            // Luminance threshold (ITU-R BT.601)
+            uint8_t lum = (77 * r + 150 * g + 29 * b) >> 8;
+
+            if (lum > 128)
+            {
+                lcd_fb[page][x] |= mask;
+            }
+        }
+    }
+
+    // Push all 8 pages to the LCD (handles page reordering automatically)
+    for (int page = 0; page < 8; page++)
+    {
+        nuttyDriverLCD.updatePageSeqOrder(page, lcd_fb[page], 128);
+    }
+
+    // ---- 2. Poll button input ----
+    pollNuttyInput();
 }
 
 void DG_SleepMs(uint32_t ms)
 {
-  SDL_Delay(ms);
+    vTaskDelay(pdMS_TO_TICKS(ms));
 }
 
-uint32_t DG_GetTicksMs()
+uint32_t DG_GetTicksMs(void)
 {
-  return SDL_GetTicks();
+    return (uint32_t)(esp_timer_get_time() / 1000);
 }
 
-int DG_GetKey(int* pressed, unsigned char* doomKey)
+int DG_GetKey(int *pressed, unsigned char *doomKey)
 {
-  if (s_KeyQueueReadIndex == s_KeyQueueWriteIndex){
-    //key queue is empty
-    return 0;
-  }else{
+    if (s_KeyQueueReadIndex == s_KeyQueueWriteIndex)
+    {
+        return 0; // queue empty
+    }
+
     unsigned short keyData = s_KeyQueue[s_KeyQueueReadIndex];
     s_KeyQueueReadIndex++;
     s_KeyQueueReadIndex %= KEYQUEUE_SIZE;
 
-    *pressed = keyData >> 8;
+    *pressed = (keyData >> 8) & 1;
     *doomKey = keyData & 0xFF;
 
     return 1;
-  }
-
-  return 0;
 }
 
-void DG_SetWindowTitle(const char * title)
+void DG_SetWindowTitle(const char *title)
 {
-  if (window != NULL){
-    SDL_SetWindowTitle(window, title);
-  }
-}
-
-int main(int argc, char **argv)
-{
-    doomgeneric_Create(argc, argv);
-
-    for (int i = 0; ; i++)
-    {
-        doomgeneric_Tick();
-    }
-    
-
-    return 0;
+    (void)title; // no-op on the NuttyBadge
 }

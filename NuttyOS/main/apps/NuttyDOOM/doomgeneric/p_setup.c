@@ -748,7 +748,7 @@ P_SetupLevel
   skill_t	skill)
 {
     int		i;
-    char	lumpname[9];
+    char	lumpname[16];
     int		lumpnum;
 	
     totalkills = totalitems = totalsecret = wminfo.maxfrags = 0;
@@ -775,9 +775,9 @@ P_SetupLevel
     if ( gamemode == commercial)
     {
 	if (map<10)
-	    DEH_snprintf(lumpname, 9, "map0%i", map);
+	DEH_snprintf(lumpname, sizeof(lumpname), "map0%i", map);
 	else
-	    DEH_snprintf(lumpname, 9, "map%i", map);
+	    DEH_snprintf(lumpname, sizeof(lumpname), "map%i", map);
     }
     else
     {
